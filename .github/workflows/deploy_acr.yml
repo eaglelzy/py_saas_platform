@@ -64,7 +64,9 @@ jobs:
             # 将分支名中的斜杠替换为下划线，以便创建合法的镜像标签
             SAFE_IMAGE_TAG="${IMAGE_VERSION_TAG//\//_}"
             
-            if [[ ${{ startsWith(github.ref, 'refs/heads/release/') }} ]]; then
+            echo "GITHUB_REF: ${{ github.ref }}"
+            echo "GITHUB_REF_NAME: ${{ github.ref_name }}"
+            if [${{ startsWith(github.ref, 'refs/heads/release/') }} ]]; then
               CONTAINER_NAME="saas_platform_test"
               HOST_PORT="8080"
             else
