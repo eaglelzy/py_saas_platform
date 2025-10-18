@@ -53,8 +53,10 @@ jobs:
             IMAGE_VERSION_TAG="${{ github.ref_name }}"
             if [[ ${{ startsWith(github.ref, 'refs/heads/release/') }} ]]; then
               CONTAINER_NAME="saas_platform_test"
+              HOST_PORT="8080"
             else
               CONTAINER_NAME="saas_platform_prod}"
+              HOST_PORT="80"
             fi
 
             FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${IMAGE_VERSION_TAG//\//_}" #将斜杠替换为下划线，以便创建合法的命名
@@ -80,7 +82,7 @@ jobs:
 
             echo "Starting new container with ${SHORT_IMAGE_NAME}..."
             # Remember to map to the correct container port (e.g., 5000)
-            docker run -d --name $CONTAINER_NAME -p 80:8000 $SHORT_IMAGE_NAME
+            docker run -d --name $CONTAINER_NAME -p $HOST_PORT:8000 $SHORT_IMAGE_NAME
 
             docker image prune -f
 
