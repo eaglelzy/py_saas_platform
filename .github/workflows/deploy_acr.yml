@@ -23,16 +23,26 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      - name: Generate safe tag name
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            # 将分支名中的斜杠替换为下划线
+            SAFE_TAG=$(echo "${{ github.ref_name }}" | sed 's/\//_/g')
+            echo "tag=$SAFE_TAG" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          # 标签逻辑：如果是 release 分支，则使用分支名作为标签；如果是 tag，则使用 tag 名作为标签；如果是其他分支，则使用 sha 作为标签
-          tags: >
-            ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ startsWith(github.ref, 'refs/tags/') && github.ref_name 
-              || startsWith(github.ref, 'refs/heads/release/') && github.ref_name || github.sha }}
+          tags: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ steps.tag.outputs.tag }}
 
   # --- 任务二：部署到 ECS 实例 ---
   deploy-to-ecs:
@@ -51,15 +61,18 @@ jobs:
             set -e
 
             IMAGE_VERSION_TAG="${{ github.ref_name }}"
+            # 将分支名中的斜杠替换为下划线，以便创建合法的镜像标签
+            SAFE_IMAGE_TAG="${IMAGE_VERSION_TAG//\//_}"
+            
             if [[ ${{ startsWith(github.ref, 'refs/heads/release/') }} ]]; then
               CONTAINER_NAME="saas_platform_test"
               HOST_PORT="8080"
             else
-              CONTAINER_NAME="saas_platform_prod}"
+              CONTAINER_NAME="saas_platform_prod"
               HOST_PORT="80"
             fi
 
-            FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${IMAGE_VERSION_TAG//\//_}" #将斜杠替换为下划线，以便创建合法的命名
+            FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${SAFE_IMAGE_TAG}"
             SHORT_IMAGE_NAME="saas_platform:${IMAGE_VERSION_TAG}"
             CONTAINER_NAME="saas_platform_container"
 
