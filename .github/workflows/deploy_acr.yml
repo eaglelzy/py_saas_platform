@@ -73,11 +73,11 @@ jobs:
             fi
 
             FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${SAFE_IMAGE_TAG}"
-            SHORT_IMAGE_NAME="saas_platform:${IMAGE_VERSION_TAG}"
+            SHORT_IMAGE_NAME="saas_platform:${SAFE_IMAGE_TAG}"
             CONTAINER_NAME="saas_platform_container"
 
             echo "--- Starting RELEASE Deployment ---"
-            echo "Deploying version: ${IMAGE_VERSION_TAG}"
+            echo "Deploying version: ${SHORT_IMAGE_NAME}"
             echo "Full Image to deploy: $FULL_IMAGE_TAG"
 
             echo "${{ secrets.ACR_PASSWORD }}" | docker login --username=${{ secrets.ACR_USERNAME }} --password-stdin ${{ secrets.ACR_REGISTRY }}
