@@ -1,15 +1,15 @@
-name: Build, Push to ACR, and Deploy to ECS
+name: '[DEBUG] Build, Push to ACR, and Deploy to ECS'
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  # --- 任务一：构建并推送镜像 (已优化) ---
+  # --- 任务一：构建并推送镜像 ---
   build-and-push-image:
     runs-on: ubuntu-latest
-    # 定义任务的输出
     outputs:
+      # 我们将从这里导出 image_tags 的值
       image_tags: ${{ steps.meta.outputs.tags }}
 
     steps:
@@ -23,28 +23,29 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      # 新增步骤：使用 metadata-action 自动生成镜像标签
       - name: Generate image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # 指定要生成的镜像名称
           images: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform
-          # 定义标签格式：使用 commit SHA 作为标签，这是最佳实践
-          tags: type=sha,prefix=
+          tags: type=sha,prefix=v
 
-      # 修改步骤：使用上一步生成的标签来构建和推送
+      # ========================= 调试点 1 =========================
+      # 检查 'meta' 步骤是否成功生成了标签
+      - name: '[DEBUG] Print Image Tags from Meta Step'
+        run: |
+          echo "[DEBUG] Meta step output 'tags' is: ${{ steps.meta.outputs.tags }}"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          # 直接使用 meta 步骤的输出
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # --- 任务二：部署到 ECS 实例 (修正了变量引用) ---
+  # --- 任务二：部署到 ECS 实例 ---
   deploy-to-ecs:
     needs: build-and-push-image
     runs-on: ubuntu-latest
@@ -59,14 +60,28 @@ jobs:
           script: |
             set -e
 
-            # 修正：从 needs 上下文中正确获取上一个任务的输出
+            # ========================= 调试点 2 =========================
+            # 在脚本开始时，打印从上一个任务接收到的原始值
+            # 我们用引号包围它，以便清晰地看到它是否为空
+            echo "[DEBUG] Received from needs context: '${{ needs.build-and-push-image.outputs.image_tags }}'"
+
             IMAGE_TAG="${{ needs.build-and-push-image.outputs.image_tags }}"
             CONTAINER_NAME="saas_platform_container"
+            
+            # ========================= 调试点 3 =========================
+            # 检查 shell 变量是否被成功赋值
+            echo "[DEBUG] Value assigned to shell variable IMAGE_TAG is: '$IMAGE_TAG'"
 
             echo "--- Starting Deployment ---"
-            echo "Image to deploy: $IMAGE_TAG" # 这里现在应该能正确打印出镜像标签了
+            echo "Image to deploy: $IMAGE_TAG"
 
-            docker login --username=${{ secrets.ACR_USERNAME }} --password=${{ secrets.ACR_PASSWORD }} ${{ secrets.ACR_REGISTRY }}
+            # 增加一个检查，如果IMAGE_TAG为空则直接失败，避免执行无效的docker pull
+            if [ -z "$IMAGE_TAG" ]; then
+              echo "FATAL: IMAGE_TAG is empty. Aborting deployment."
+              exit 1
+            fi
+
+            echo "${{ secrets.ACR_PASSWORD }}" | docker login --username=${{ secrets.ACR_USERNAME }} --password-stdin ${{ secrets.ACR_REGISTRY }}
             docker pull $IMAGE_TAG
 
             if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
