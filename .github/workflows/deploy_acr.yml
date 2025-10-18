@@ -71,6 +71,8 @@ jobs:
               CONTAINER_NAME="saas_platform_prod"
               HOST_PORT="80"
             fi
+            echo "CONTAINER_NAME: $CONTAINER_NAME"
+            echo "HOST_PORT: $HOST_PORT"
 
             FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${SAFE_IMAGE_TAG}"
             SHORT_IMAGE_NAME="saas_platform:${SAFE_IMAGE_TAG}"
