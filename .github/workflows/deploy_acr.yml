@@ -5,12 +5,12 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # --- 任务一：构建并推送镜像 (和之前类似，但增加了 outputs) ---
+  # --- 任务一：构建并推送镜像 (已优化) ---
   build-and-push-image:
     runs-on: ubuntu-latest
-    # 定义输出，以便其他任务可以使用这个任务的结果
+    # 定义任务的输出
     outputs:
-      image_tag: ${{ steps.build-and-push.outputs.image_tag }}
+      image_tags: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout repository
@@ -23,69 +23,61 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      # 新增步骤：使用 metadata-action 自动生成镜像标签
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # 指定要生成的镜像名称
+          images: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform
+          # 定义标签格式：使用 commit SHA 作为标签，这是最佳实践
+          tags: type=sha,prefix=
+
+      # 修改步骤：使用上一步生成的标签来构建和推送
       - name: Build and push Docker image
-        id: build-and-push # 给这个步骤一个ID，方便引用其输出
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          # 构造完整的镜像标签
-          tags: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ github.sha }}
+          # 直接使用 meta 步骤的输出
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
-      # 新增步骤：将完整的镜像标签设置为任务的输出
-      - name: Set image tag output
-        run: echo "image_tag=${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ github.sha }}" >> $GITHUB_OUTPUT
-
-  # --- 任务二：部署到 ECS 实例 ---
+  # --- 任务二：部署到 ECS 实例 (修正了变量引用) ---
   deploy-to-ecs:
-    # 依赖于上一个任务，确保镜像推送成功后才执行
     needs: build-and-push-image
     runs-on: ubuntu-latest
 
     steps:
       - name: Deploy to Alibaba Cloud ECS
-        # 使用一个非常流行的 SSH Action
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.ECS_SERVER_IP }}
           username: ${{ secrets.ECS_USERNAME }}
           key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
-          # 在 ECS 上执行的脚本
           script: |
-            # 使用 set -e 保证脚本中任意命令执行失败，则后续命令不再执行
             set -e
 
-            # 定义变量，方便维护
-            # 从上一个任务的输出中获取镜像标签
-            IMAGE_TAG="${{ needs.build-and-push-image.outputs.image_tag }}"
+            # 修正：从 needs 上下文中正确获取上一个任务的输出
+            IMAGE_TAG="${{ needs.build-and-push-image.outputs.image_tags }}"
             CONTAINER_NAME="saas_platform_container"
 
             echo "--- Starting Deployment ---"
-            echo "Image to deploy: $IMAGE_TAG"
+            echo "Image to deploy: $IMAGE_TAG" # 这里现在应该能正确打印出镜像标签了
 
-            # 1. 登录到 ACR (ECS 服务器也需要权限拉取私有镜像)
             docker login --username=${{ secrets.ACR_USERNAME }} --password=${{ secrets.ACR_PASSWORD }} ${{ secrets.ACR_REGISTRY }}
-
-            # 2. 拉取最新的镜像
             docker pull $IMAGE_TAG
 
-            # 3. 停止并删除旧的容器 (如果存在)
-            # "|| true" 保证在容器不存在时，命令也不会失败
             if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
                 echo "Stopping and removing existing container..."
                 docker stop $CONTAINER_NAME
                 docker rm $CONTAINER_NAME
             fi
 
-            # 4. 启动新的容器
             echo "Starting new container..."
-            # -d: 后台运行
-            # --name: 指定容器名称
-            # -p 8000:8000: 将主机的8000端口映射到容器的8000端口 (请根据您的应用修改)
             docker run -d --name $CONTAINER_NAME -p 8000:8000 $IMAGE_TAG
 
-            # 5. 清理悬空的旧镜像 (可选，但推荐)
             docker image prune -f
 
             echo "--- Deployment Successful ---"
