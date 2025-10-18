@@ -1,4 +1,4 @@
-name: '[DEBUG] Build, Push to ACR, and Deploy to ECS'
+name: Build, Push to ACR, and Deploy to ECS
 
 on:
   push:
@@ -8,9 +8,6 @@ jobs:
   # --- 任务一：构建并推送镜像 ---
   build-and-push-image:
     runs-on: ubuntu-latest
-    outputs:
-      # 我们将从这里导出 image_tags 的值
-      image_tags: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout repository
@@ -23,30 +20,18 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Generate image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform
-          tags: type=sha,prefix=v
-
-      # ========================= 调试点 1 =========================
-      # 检查 'meta' 步骤是否成功生成了标签
-      - name: '[DEBUG] Print Image Tags from Meta Step'
-        run: |
-          echo "[DEBUG] Meta step output 'tags' is: ${{ steps.meta.outputs.tags }}"
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          # 使用全局变量 github.sha 来构建唯一的镜像标签
+          tags: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ github.sha }}
 
   # --- 任务二：部署到 ECS 实例 ---
   deploy-to-ecs:
+    # 依赖任务一成功完成
     needs: build-and-push-image
     runs-on: ubuntu-latest
 
@@ -58,41 +43,34 @@ jobs:
           username: ${{ secrets.ECS_USERNAME }}
           key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
           script: |
+            # 保证脚本出错时立即退出
             set -e
 
-            # ========================= 调试点 2 =========================
-            # 在脚本开始时，打印从上一个任务接收到的原始值
-            # 我们用引号包围它，以便清晰地看到它是否为空
-            echo "[DEBUG] Received from needs context: '${{ needs.build-and-push-image.outputs.image_tags }}'"
-
-            IMAGE_TAG="${{ needs.build-and-push-image.outputs.image_tags }}"
+            # 关键修复：使用与任务一完全相同的方式，独立地、可靠地重建镜像标签
+            IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ github.sha }}"
             CONTAINER_NAME="saas_platform_container"
-            
-            # ========================= 调试点 3 =========================
-            # 检查 shell 变量是否被成功赋值
-            echo "[DEBUG] Value assigned to shell variable IMAGE_TAG is: '$IMAGE_TAG'"
 
             echo "--- Starting Deployment ---"
-            echo "Image to deploy: $IMAGE_TAG"
+            echo "Image to deploy: $IMAGE_TAG" # 这一次，这里将正确打印出完整的镜像标签
 
-            # 增加一个检查，如果IMAGE_TAG为空则直接失败，避免执行无效的docker pull
-            if [ -z "$IMAGE_TAG" ]; then
-              echo "FATAL: IMAGE_TAG is empty. Aborting deployment."
-              exit 1
-            fi
-
+            # 使用更安全的 password-stdin 方式登录
             echo "${{ secrets.ACR_PASSWORD }}" | docker login --username=${{ secrets.ACR_USERNAME }} --password-stdin ${{ secrets.ACR_REGISTRY }}
+
+            # 拉取最新的镜像
             docker pull $IMAGE_TAG
 
+            # 停止并删除可能存在的旧容器
             if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
                 echo "Stopping and removing existing container..."
                 docker stop $CONTAINER_NAME
                 docker rm $CONTAINER_NAME
             fi
 
+            # 启动新容器
             echo "Starting new container..."
             docker run -d --name $CONTAINER_NAME -p 8000:8000 $IMAGE_TAG
 
+            # 清理无用的旧镜像
             docker image prune -f
 
             echo "--- Deployment Successful ---"
