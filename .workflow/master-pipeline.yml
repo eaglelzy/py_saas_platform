@@ -17,7 +17,7 @@ stages:
         name: build_docker
         displayName: 镜像构建
         type: cert
-        certificate: 9e12d630-8e25-013e-a238-0610cbbb7e54
+        certificate: 915873f0-8e39-013e-fd5a-2a285a12392c
         tag: ${GITEE_PIPELINE_BUILD_NUMBER}
         dockerfile: ./Dockerfile
         context: ''
