@@ -74,7 +74,6 @@ jobs:
 
             FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${SAFE_IMAGE_TAG}"
             SHORT_IMAGE_NAME="saas_platform:${SAFE_IMAGE_TAG}"
-            CONTAINER_NAME="saas_platform_container"
 
             echo "--- Starting RELEASE Deployment ---"
             echo "Deploying version: ${SHORT_IMAGE_NAME}"
@@ -86,6 +85,10 @@ jobs:
 
             echo "Tagging image ${FULL_IMAGE_TAG} as ${SHORT_IMAGE_NAME}"
             docker tag $FULL_IMAGE_TAG $SHORT_IMAGE_NAME
+            
+            # 删除长名字的镜像以节省空间
+            echo "Removing long-named image: ${FULL_IMAGE_TAG}"
+            docker rmi $FULL_IMAGE_TAG
 
             if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
                 echo "Stopping and removing existing container..."
