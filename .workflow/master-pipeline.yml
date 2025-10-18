@@ -13,6 +13,25 @@ stages:
     strategy: naturally
     trigger: auto
     steps:
+      - step: shell@agent
+        name: execute_shell
+        displayName: Shell 脚本执行
+        hostGroupID:
+          ID: ALIYUN
+          hostID:
+            - af35cd1c-db66-450f-bd9c-7fd7774f2ac3
+        scriptType: null
+        script:
+          - echo "Starting manual login to Alibaba Cloud ACR..."
+          - ''
+          - '# 使用我们刚刚创建的私密变量来登录'
+          - '# --password-stdin 是一种更安全的'
+          - ' docker login --username eagle_lzy@dev.csdn.net --password-stdin crpi-iyq1iqfffn9ehscp.cn-beijing.personal.cr.aliyuncs.com'
+          - ''
+          - echo "Login command executed."
+        notify: []
+        strategy:
+          retry: '0'
       - step: build@docker
         name: build_docker
         displayName: 镜像构建
@@ -27,6 +46,7 @@ stages:
         notify: []
         strategy:
           retry: '0'
+        dependsOn: execute_shell
   - name: release
     displayName: 发布
     strategy: naturally
