@@ -1,8 +1,10 @@
-name: Build, Push to ACR, and Deploy to ECS
+name: Build, Push, and Deploy to ECS
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ] # Trigger on pushes to the main branch (for dev builds)
+    tags:
+      - 'v*'            # Trigger on pushes of tags that start with 'v' (e.g., v1.0, v1.0.1)
 
 jobs:
   # --- 任务一：构建并推送镜像 ---
@@ -26,12 +28,11 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          # 使用全局变量 github.sha 来构建唯一的镜像标签
-          tags: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ github.sha }}
+          tags: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
 
   # --- 任务二：部署到 ECS 实例 ---
   deploy-to-ecs:
-    # 依赖任务一成功完成
+    if: startsWith(github.ref, 'refs/tags/')
     needs: build-and-push-image
     runs-on: ubuntu-latest
 
@@ -43,34 +44,36 @@ jobs:
           username: ${{ secrets.ECS_USERNAME }}
           key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
           script: |
-            # 保证脚本出错时立即退出
             set -e
 
-            # 关键修复：使用与任务一完全相同的方式，独立地、可靠地重建镜像标签
-            IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ github.sha }}"
+            # Dynamically construct the image tag in the script
+            # We use the github.ref_name variable which holds the tag name (e.g., "v1.0.0")
+            IMAGE_VERSION_TAG="${{ github.ref_name }}"
+            FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${IMAGE_VERSION_TAG}"
+            SHORT_IMAGE_NAME="saas_platform:${IMAGE_VERSION_TAG}"
             CONTAINER_NAME="saas_platform_container"
 
-            echo "--- Starting Deployment ---"
-            echo "Image to deploy: $IMAGE_TAG" # 这一次，这里将正确打印出完整的镜像标签
+            echo "--- Starting RELEASE Deployment ---"
+            echo "Deploying version: ${IMAGE_VERSION_TAG}"
+            echo "Full Image to deploy: $FULL_IMAGE_TAG"
 
-            # 使用更安全的 password-stdin 方式登录
             echo "${{ secrets.ACR_PASSWORD }}" | docker login --username=${{ secrets.ACR_USERNAME }} --password-stdin ${{ secrets.ACR_REGISTRY }}
 
-            # 拉取最新的镜像
-            docker pull $IMAGE_TAG
+            docker pull $FULL_IMAGE_TAG
 
-            # 停止并删除可能存在的旧容器
+            echo "Tagging image ${FULL_IMAGE_TAG} as ${SHORT_IMAGE_NAME}"
+            docker tag $FULL_IMAGE_TAG $SHORT_IMAGE_NAME
+
             if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
                 echo "Stopping and removing existing container..."
                 docker stop $CONTAINER_NAME
                 docker rm $CONTAINER_NAME
             fi
 
-            # 启动新容器
-            echo "Starting new container..."
-            docker run -d --name $CONTAINER_NAME -p 80:8000 $IMAGE_TAG
+            echo "Starting new container with ${SHORT_IMAGE_NAME}..."
+            # Remember to map to the correct container port (e.g., 5000)
+            docker run -d --name $CONTAINER_NAME -p 80:5000 $SHORT_IMAGE_NAME
 
-            # 清理无用的旧镜像
             docker image prune -f
 
-            echo "--- Deployment Successful ---"
+            echo "--- Deployment of ${SHORT_IMAGE_NAME} Successful ---"
