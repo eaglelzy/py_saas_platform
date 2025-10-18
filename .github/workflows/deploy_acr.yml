@@ -2,7 +2,8 @@ name: Build, Push, and Deploy to ECS
 
 on:
   push:
-    branches: [ "main" ] # Trigger on pushes to the main branch (for dev builds)
+    branches:
+      - 'release/*'
     tags:
       - 'v*'            # Trigger on pushes of tags that start with 'v' (e.g., v1.0, v1.0.1)
 
@@ -28,11 +29,14 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
+          # 标签逻辑：如果是 release 分支，则使用分支名作为标签；如果是 tag，则使用 tag 名作为标签；如果是其他分支，则使用 sha 作为标签
+          tags: >
+            ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ startsWith(github.ref, 'refs/tags/') && github.ref_name 
+              || startsWith(github.ref, 'refs/heads/release/') && github.ref_name || github.sha }}
 
   # --- 任务二：部署到 ECS 实例 ---
   deploy-to-ecs:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/release/')
     needs: build-and-push-image
     runs-on: ubuntu-latest
 
@@ -46,10 +50,14 @@ jobs:
           script: |
             set -e
 
-            # Dynamically construct the image tag in the script
-            # We use the github.ref_name variable which holds the tag name (e.g., "v1.0.0")
             IMAGE_VERSION_TAG="${{ github.ref_name }}"
-            FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${IMAGE_VERSION_TAG}"
+            if [[ ${{ startsWith(github.ref, 'refs/heads/release/') }} ]]; then
+              CONTAINER_NAME="saas_platform_test"
+            else
+              CONTAINER_NAME="saas_platform_prod}"
+            fi
+
+            FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${IMAGE_VERSION_TAG//\//_}" #将斜杠替换为下划线，以便创建合法的命名
             SHORT_IMAGE_NAME="saas_platform:${IMAGE_VERSION_TAG}"
             CONTAINER_NAME="saas_platform_container"
 
@@ -72,7 +80,7 @@ jobs:
 
             echo "Starting new container with ${SHORT_IMAGE_NAME}..."
             # Remember to map to the correct container port (e.g., 5000)
-            docker run -d --name $CONTAINER_NAME -p 80:5000 $SHORT_IMAGE_NAME
+            docker run -d --name $CONTAINER_NAME -p 80:8000 $SHORT_IMAGE_NAME
 
             docker image prune -f
 
