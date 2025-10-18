@@ -68,7 +68,7 @@ jobs:
 
             # 启动新容器
             echo "Starting new container..."
-            docker run -d --name $CONTAINER_NAME -p 8000:8000 $IMAGE_TAG
+            docker run -d --name $CONTAINER_NAME -p 80:8000 $IMAGE_TAG
 
             # 清理无用的旧镜像
             docker image prune -f
