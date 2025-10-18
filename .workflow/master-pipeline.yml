@@ -26,7 +26,7 @@ stages:
           - ''
           - '# 使用我们刚刚创建的私密变量来登录'
           - '# --password-stdin 是一种更安全的'
-          - ' docker login --username eagle_lzy@dev.csdn.net --password-stdin crpi-iyq1iqfffn9ehscp.cn-beijing.personal.cr.aliyuncs.com'
+          - echo Lzy142857 | docker login --username eagle_lzy@dev.csdn.net --password-stdin crpi-iyq1iqfffn9ehscp.cn-beijing.personal.cr.aliyuncs.com
           - ''
           - echo "Login command executed."
         notify: []
