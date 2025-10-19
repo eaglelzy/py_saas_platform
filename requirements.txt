@@ -1,2 +1,18 @@
 fastapi
 uvicorn
+
+# --- ORM & Database ---
+sqlalchemy
+alembic
+psycopg2-binary # for PostgreSQL
+
+# --- Data Validation & Settings ---
+pydantic
+pydantic-settings
+
+# --- Security & Authentication ---
+passlib[bcrypt] # for password hashing
+python-jose[cryptography]
+
+# --- Logging ---
+colorlog # For colored log output

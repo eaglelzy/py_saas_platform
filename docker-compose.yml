@@ -1,56 +1,67 @@
 version: '3.8'
 
+# 设置项目名称，这将作为所有容器名称的前缀
+name: study-assistant
+
 services:
-  # 开发环境主应用
+  # 留学助手应用
   app:
     build: .
-    container_name: py_saas_platform
+    container_name: app
     ports:
-      - "3000:8000"
+      # 使用 .env 文件中定义的端口
+      - "${APP_PORT:-3001}:8000"
     environment:
+      # --- 从 .env 文件中读取变量 ---
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - PROJECT_NAME=${PROJECT_NAME}
+      # --- 硬编码的环境变量 ---
       - ENV=development
       - DEBUG=true
-      - DATABASE_URL=postgresql://saas_user:dev_password@db:5432/saas_platform_dev
-      - REDIS_URL=redis://redis:6379/2
     volumes:
       - .:/app
-      - /app/node_modules
     restart: unless-stopped
     networks:
-      - saas_network
+      - study-network
     depends_on:
       - db
       - redis
 
-  # 开发环境数据库
+  # 留学助手数据库
   db:
-    image: postgres:15-alpine
-    container_name: saas_platform-db-dev
+    image: postgres:14-alpine
+    container_name: db
     environment:
-      POSTGRES_DB: saas_platform_dev
-      POSTGRES_USER: saas_user
-      POSTGRES_PASSWORD: dev_password_123
+      # 从 .env 文件中读取数据库配置
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
+      - study_db_data:/var/lib/postgresql/data
+      # 您之前的 init.sql 挂载保持不变
+      # - ./scripts/init_study_db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5434:5432"
+      # 使用 .env 文件中定义的端口
+      - "${DB_PORT:-5432}:5432"
     restart: unless-stopped
     networks:
-      - saas_network
+      - study-network
 
-  # 开发环境 Redis
+  # 留学助手 Redis
   redis:
     image: redis:7-alpine
-    container_name: saas_platform-redis-dev
+    container_name: redis
     ports:
-      - "6381:6379"
+      # 使用 .env 文件中定义的端口
+      - "${REDIS_PORT:-6379}:6379"
     restart: unless-stopped
     networks:
-      - saas_network
+      - study-network
 
 networks:
-  saas_network:
+  study-network:
     driver: bridge
 
 volumes:
-  postgres_dev_data:
+  study_db_data:
