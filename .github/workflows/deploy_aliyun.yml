@@ -108,15 +108,15 @@ jobs:
     if: needs.determine-environment.outputs.environment == 'test'
     runs-on: ubuntu-latest
     steps:
-      - name: Copy docker-compose file via scp
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.TEST_ECS_SERVER_IP }}
-          username: ${{ secrets.TEST_ECS_USERNAME }}
-          key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
-          source: "docker-compose.prod.yml"
-          target: "/www/wwwroot/saas_platform/test"
-          # target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
+      # - name: Copy docker-compose file via scp
+      #   uses: appleboy/scp-action@v1
+      #   with:
+      #     host: ${{ secrets.TEST_ECS_SERVER_IP }}
+      #     username: ${{ secrets.TEST_ECS_USERNAME }}
+      #     key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
+      #     source: "docker-compose.prod.yml"
+      #     target: "/www/wwwroot/saas_platform/test"
+      #     # target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
 
       # 关键步骤：在服务器上生成 .env 文件
       - name: Create .env file on ECS
