@@ -108,6 +108,15 @@ jobs:
     if: needs.determine-environment.outputs.environment == 'test'
     runs-on: ubuntu-latest
     steps:
+      - name: Copy docker-compose file via scp
+        uses: appleboy/scp-action@v1.0.4
+        with:
+          host: ${{ secrets.TEST_ECS_SERVER_IP }}
+          username: ${{ secrets.TEST_ECS_USERNAME }}
+          key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
+          source: "docker-compose.prod.yml"
+          target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
+
       - name: Deploy to Test Environment
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -122,62 +131,16 @@ jobs:
             # 导航到项目目录
             cd ${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}
             
-            echo "📄 创建 docker-compose.prod.yml 文件..."
-            cat <<'EOF' > docker-compose.prod.yml
-            version: '3.8'
-
-            services:
-              app:
-                # 镜像全名将由 CI/CD 流程通过环境变量注入
-                image: ${IMAGE_NAME_WITH_TAG}
-                restart: always
-                ports:
-                  - "${APP_PORT:-3001}:8000"
-                environment:
-                  - DATABASE_URL=${DATABASE_URL}
-                  - SECRET_KEY=${SECRET_KEY}
-                  - PROJECT_NAME=${PROJECT_NAME}
-                  - ENV=production
-                  - DEBUG=false
-                networks:
-                  - study-network
-                depends_on:
-                  - db
-                  - redis
-
-              db:
-                image: postgres:14-alpine
-                restart: always
-                environment:
-                  - POSTGRES_DB=${POSTGRES_DB}
-                  - POSTGRES_USER=${POSTGRES_USER}
-                  - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-                volumes:
-                  - study_db_data:/var/lib/postgresql/data
-                networks:
-                  - study-network
-
-              redis:
-                image: redis:7-alpine
-                restart: always
-                networks:
-                  - study-network
-
-            networks:
-              study-network:
-                driver: bridge
-
-            volumes:
-              study_db_data:
-            EOF
-            
             # 确保项目目录存在
             mkdir -p ${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}
             
             echo "📦 准备部署环境..."
             
             # 设置测试环境变量
+            echo "🔍 调试信息："
+            echo "镜像URI: ${{ needs.build-and-push.outputs.image_uri }}"
             export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"
+            echo "设置的镜像标签: $IMAGE_NAME_WITH_TAG"
             export APP_PORT=${{ secrets.TEST_APP_PORT || '8080' }}
             # postgresql://lizy:Lzy142857@db:5433/study_assitant_db_test
             export DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
@@ -238,6 +201,15 @@ jobs:
     if: needs.determine-environment.outputs.environment == 'production'
     runs-on: ubuntu-latest
     steps:
+      - name: Copy docker-compose file via scp
+        uses: appleboy/scp-action@v1.0.3
+        with:
+          host: ${{ secrets.ECS_SERVER_IP }}
+          username: ${{ secrets.ECS_USERNAME }}
+          key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
+          source: "docker-compose.prod.yml"
+          target: "${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}"
+
       - name: Deploy to Production Environment
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -251,55 +223,6 @@ jobs:
             
             # 导航到项目目录
             cd ${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}
-
-            echo "📄 创建 docker-compose.prod.yml 文件..."
-            cat <<'EOF' > docker-compose.prod.yml
-            version: '3.8'
-
-            services:
-              app:
-                # 镜像全名将由 CI/CD 流程通过环境变量注入
-                image: ${IMAGE_NAME_WITH_TAG}
-                restart: always
-                ports:
-                  - "${APP_PORT:-3001}:8000"
-                environment:
-                  - DATABASE_URL=${DATABASE_URL}
-                  - SECRET_KEY=${SECRET_KEY}
-                  - PROJECT_NAME=${PROJECT_NAME}
-                  - ENV=production
-                  - DEBUG=false
-                networks:
-                  - study-network
-                depends_on:
-                  - db
-                  - redis
-
-              db:
-                image: postgres:14-alpine
-                restart: always
-                environment:
-                  - POSTGRES_DB=${POSTGRES_DB}
-                  - POSTGRES_USER=${POSTGRES_USER}
-                  - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-                volumes:
-                  - study_db_data:/var/lib/postgresql/data
-                networks:
-                  - study-network
-
-              redis:
-                image: redis:7-alpine
-                restart: always
-                networks:
-                  - study-network
-
-            networks:
-              study-network:
-                driver: bridge
-
-            volumes:
-              study_db_data:
-            EOF
             
             # 确保项目目录存在
             mkdir -p ${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}
@@ -307,7 +230,10 @@ jobs:
             echo "📦 准备生产环境部署..."
             
             # 设置生产环境变量
+            echo "🔍 调试信息："
+            echo "镜像URI: ${{ needs.build-and-push.outputs.image_uri }}"
             export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"
+            echo "设置的镜像标签: $IMAGE_NAME_WITH_TAG"
             export APP_PORT=${{ secrets.PROD_APP_PORT || '8888' }}
             export DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
             export SECRET_KEY=${{ secrets.PROD_SECRET_KEY }}
