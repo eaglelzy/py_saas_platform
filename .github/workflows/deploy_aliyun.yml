@@ -117,6 +117,9 @@ jobs:
       #     source: "docker-compose.prod.yml"
       #     target: "/www/wwwroot/saas_platform/test"
       #     # target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
+      - name: Print image tag
+        run: |
+          echo "IMAGE_TAG: ${{ steps.meta.outputs.tags }}-${{ needs.determine-environment.outputs.environment }}"
 
       # 关键步骤：在服务器上生成 .env 文件
       - name: Create .env file on ECS
