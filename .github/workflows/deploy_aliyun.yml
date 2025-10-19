@@ -68,7 +68,7 @@ jobs:
     if: needs.determine-environment.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     outputs:
-      image_uri: ${{ steps.meta.outputs.tags }}
+      image_uri: ${{ steps.prepare-output.outputs.image_uri }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -91,11 +91,6 @@ jobs:
           tags: |
             type=raw,value=${{ needs.determine-environment.outputs.image_tag }}-${{ needs.determine-environment.outputs.environment }}
 
-
-      - name: Print image tag
-        run: |
-          echo "META_IMAGE_TAG: ${{ steps.meta.outputs.tags }}"
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -106,6 +101,17 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ needs.determine-environment.outputs.environment }}
           cache-to: type=gha,mode=max,scope=${{ needs.determine-environment.outputs.environment }}
+
+      - name: Prepare single-line image URI for output
+        id: prepare-output
+        run: |
+          # 从 meta 的输出中提取第一行（也就是我们需要的那个tag），并去除任何换行符
+          # 然后将其设置为这个新步骤的输出
+          echo "image_uri=$(echo '${{ steps.meta.outputs.tags }}' | head -n 1)" >> $GITHUB_OUTPUT
+
+      - name: Print image URI
+        run: |
+          echo "IMAGE_URI: ${{ steps.prepare-output.outputs.image_uri }}"
 
   # 部署到测试环境
   deploy-test:
