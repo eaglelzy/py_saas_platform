@@ -122,10 +122,10 @@ jobs:
             # 导航到项目目录
             cd ${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}
             
-            # 拉取最新代码
-            echo "📥 拉取最新代码..."
-            git fetch origin
-            git reset --hard origin/develop
+            # 确保项目目录存在
+            mkdir -p ${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}
+            
+            echo "📦 准备部署环境..."
             
             # 设置测试环境变量
             export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"
@@ -203,16 +203,10 @@ jobs:
             # 导航到项目目录
             cd ${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}
             
-            # 拉取最新代码
-            echo "📥 拉取最新代码..."
-            git fetch origin
-            if [[ "${{ github.ref }}" == refs/heads/main ]]; then
-              git reset --hard origin/main
-            elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-              git checkout ${{ github.ref_name }}
-            elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
-              git reset --hard origin/${{ github.ref_name }}
-            fi
+            # 确保项目目录存在
+            mkdir -p ${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}
+            
+            echo "📦 准备生产环境部署..."
             
             # 设置生产环境变量
             export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"
