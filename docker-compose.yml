@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # 开发环境主应用
+  app:
+    build: .
+    container_name: py_saas_platform
+    ports:
+      - "3000:8000"
+    environment:
+      - ENV=development
+      - DEBUG=true
+      - DATABASE_URL=postgresql://saas_user:dev_password@db:5432/saas_platform_dev
+      - REDIS_URL=redis://redis:6379/2
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - saas_network
+    depends_on:
+      - db
+      - redis
+
+  # 开发环境数据库
+  db:
+    image: postgres:15-alpine
+    container_name: saas_platform-db-dev
+    environment:
+      POSTGRES_DB: saas_platform_dev
+      POSTGRES_USER: saas_user
+      POSTGRES_PASSWORD: dev_password_123
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    restart: unless-stopped
+    networks:
+      - saas_network
+
+  # 开发环境 Redis
+  redis:
+    image: redis:7-alpine
+    container_name: saas_platform-redis-dev
+    ports:
+      - "6381:6379"
+    restart: unless-stopped
+    networks:
+      - saas_network
+
+networks:
+  saas_network:
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
