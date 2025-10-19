@@ -108,15 +108,15 @@ jobs:
     if: needs.determine-environment.outputs.environment == 'test'
     runs-on: ubuntu-latest
     steps:
-      - name: Copy docker-compose file via scp
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.TEST_ECS_SERVER_IP }}
-          username: ${{ secrets.TEST_ECS_USERNAME }}
-          key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
-          source: "docker-compose.prod.yml"
-          target: "/www/wwwroot/saas_platform/test"
-          # target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
+      # - name: Copy docker-compose file via scp
+      #   uses: appleboy/scp-action@v1
+      #   with:
+      #     host: ${{ secrets.TEST_ECS_SERVER_IP }}
+      #     username: ${{ secrets.TEST_ECS_USERNAME }}
+      #     key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
+      #     source: "docker-compose.prod.yml"
+      #     target: "/www/wwwroot/saas_platform/test"
+      #     # target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
 
       - name: Deploy to Test Environment
         uses: appleboy/ssh-action@v1.0.3
@@ -202,15 +202,15 @@ jobs:
     if: needs.determine-environment.outputs.environment == 'production'
     runs-on: ubuntu-latest
     steps:
-      - name: Copy docker-compose file via scp
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.ECS_SERVER_IP }}
-          username: ${{ secrets.ECS_USERNAME }}
-          key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
-          source: "docker-compose.prod.yml"
-          target: "/www/wwwroot/saas_platform/prod"
-          # target: "${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}"
+      # - name: Copy docker-compose file via scp
+      #   uses: appleboy/scp-action@v1.0.0
+      #   with:
+      #     host: ${{ secrets.ECS_SERVER_IP }}
+      #     username: ${{ secrets.ECS_USERNAME }}
+      #     key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
+      #     source: "docker-compose.prod.yml"
+      #     target: "/www/wwwroot/saas_platform/prod"
+      #     # target: "${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}"
 
       - name: Deploy to Production Environment
         uses: appleboy/ssh-action@v1.0.3
