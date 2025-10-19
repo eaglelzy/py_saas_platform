@@ -107,7 +107,6 @@ jobs:
     needs: [determine-environment, build-and-push]
     if: needs.determine-environment.outputs.environment == 'test'
     runs-on: ubuntu-latest
-    environment: test
     steps:
       - name: Deploy to Test Environment
         uses: appleboy/ssh-action@v1.0.3
@@ -189,7 +188,6 @@ jobs:
     needs: [determine-environment, build-and-push]
     if: needs.determine-environment.outputs.environment == 'production'
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - name: Deploy to Production Environment
         uses: appleboy/ssh-action@v1.0.3

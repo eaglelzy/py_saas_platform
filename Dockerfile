@@ -14,8 +14,22 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 
 # --- 第二阶段：最终镜像 (Final Image) ---
-# 使用一个更小的基础镜像
-FROM python:3.12-slim
+# 使用Alibaba Cloud Linux兼容的基础镜像
+FROM centos:8
+
+# 安装Python和必要的系统工具
+RUN dnf update -y && dnf install -y \
+    python3 \
+    python3-pip \
+    python3-devel \
+    gcc \
+    git \
+    curl \
+    wget \
+    && dnf clean all
+
+# 设置Python3为默认python
+RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 WORKDIR /app
 
