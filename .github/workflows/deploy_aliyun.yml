@@ -108,13 +108,30 @@ jobs:
     if: needs.determine-environment.outputs.environment == 'test'
     runs-on: ubuntu-latest
     steps:
+      - name: Check docker-compose file exists
+        run: |
+          echo "📁 当前工作目录内容："
+          ls -la
+          echo "📄 检查docker-compose.prod.yml文件："
+          if [ -f "docker-compose.prod.yml" ]; then
+            echo "✅ docker-compose.prod.yml 文件存在"
+            echo "📊 文件大小："
+            ls -lh docker-compose.prod.yml
+            echo "📝 文件内容预览："
+            head -10 docker-compose.prod.yml
+          else
+            echo "❌ docker-compose.prod.yml 文件不存在"
+            echo "📁 查找所有compose文件："
+            find . -name "*compose*" -type f
+          fi
+
       - name: Copy docker-compose file via scp
         uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.TEST_ECS_SERVER_IP }}
           username: ${{ secrets.TEST_ECS_USERNAME }}
-          key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
-          source: "docker-compose.prod.yml"
+          source: |-
+            docker-compose.prod.yml
           target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
 
       - name: Deploy to Test Environment
@@ -201,13 +218,31 @@ jobs:
     if: needs.determine-environment.outputs.environment == 'production'
     runs-on: ubuntu-latest
     steps:
+      - name: Check docker-compose file exists
+        run: |
+          echo "📁 当前工作目录内容："
+          ls -la
+          echo "📄 检查docker-compose.prod.yml文件："
+          if [ -f "docker-compose.prod.yml" ]; then
+            echo "✅ docker-compose.prod.yml 文件存在"
+            echo "📊 文件大小："
+            ls -lh docker-compose.prod.yml
+            echo "📝 文件内容预览："
+            head -10 docker-compose.prod.yml
+          else
+            echo "❌ docker-compose.prod.yml 文件不存在"
+            echo "📁 查找所有compose文件："
+            find . -name "*compose*" -type f
+          fi
+
       - name: Copy docker-compose file via scp
         uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.ECS_SERVER_IP }}
           username: ${{ secrets.ECS_USERNAME }}
           key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
-          source: "docker-compose.prod.yml"
+          source: |-
+            docker-compose.prod.yml
           target: "${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}"
 
       - name: Deploy to Production Environment
