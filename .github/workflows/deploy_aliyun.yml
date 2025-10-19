@@ -122,6 +122,55 @@ jobs:
             # 导航到项目目录
             cd ${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}
             
+            echo "📄 创建 docker-compose.prod.yml 文件..."
+            cat <<'EOF' > docker-compose.prod.yml
+            version: '3.8'
+
+            services:
+              app:
+                # 镜像全名将由 CI/CD 流程通过环境变量注入
+                image: ${IMAGE_NAME_WITH_TAG}
+                restart: always
+                ports:
+                  - "${APP_PORT:-3001}:8000"
+                environment:
+                  - DATABASE_URL=${DATABASE_URL}
+                  - SECRET_KEY=${SECRET_KEY}
+                  - PROJECT_NAME=${PROJECT_NAME}
+                  - ENV=production
+                  - DEBUG=false
+                networks:
+                  - study-network
+                depends_on:
+                  - db
+                  - redis
+
+              db:
+                image: postgres:14-alpine
+                restart: always
+                environment:
+                  - POSTGRES_DB=${POSTGRES_DB}
+                  - POSTGRES_USER=${POSTGRES_USER}
+                  - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+                volumes:
+                  - study_db_data:/var/lib/postgresql/data
+                networks:
+                  - study-network
+
+              redis:
+                image: redis:7-alpine
+                restart: always
+                networks:
+                  - study-network
+
+            networks:
+              study-network:
+                driver: bridge
+
+            volumes:
+              study_db_data:
+            EOF
+            
             # 确保项目目录存在
             mkdir -p ${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}
             
@@ -202,6 +251,55 @@ jobs:
             
             # 导航到项目目录
             cd ${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}
+
+            echo "📄 创建 docker-compose.prod.yml 文件..."
+            cat <<'EOF' > docker-compose.prod.yml
+            version: '3.8'
+
+            services:
+              app:
+                # 镜像全名将由 CI/CD 流程通过环境变量注入
+                image: ${IMAGE_NAME_WITH_TAG}
+                restart: always
+                ports:
+                  - "${APP_PORT:-3001}:8000"
+                environment:
+                  - DATABASE_URL=${DATABASE_URL}
+                  - SECRET_KEY=${SECRET_KEY}
+                  - PROJECT_NAME=${PROJECT_NAME}
+                  - ENV=production
+                  - DEBUG=false
+                networks:
+                  - study-network
+                depends_on:
+                  - db
+                  - redis
+
+              db:
+                image: postgres:14-alpine
+                restart: always
+                environment:
+                  - POSTGRES_DB=${POSTGRES_DB}
+                  - POSTGRES_USER=${POSTGRES_USER}
+                  - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+                volumes:
+                  - study_db_data:/var/lib/postgresql/data
+                networks:
+                  - study-network
+
+              redis:
+                image: redis:7-alpine
+                restart: always
+                networks:
+                  - study-network
+
+            networks:
+              study-network:
+                driver: bridge
+
+            volumes:
+              study_db_data:
+            EOF
             
             # 确保项目目录存在
             mkdir -p ${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}
