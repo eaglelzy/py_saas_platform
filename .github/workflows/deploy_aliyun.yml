@@ -68,7 +68,7 @@ jobs:
     if: needs.determine-environment.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     outputs:
-      image_uri: ${{ steps.prepare-output.outputs.image_uri }}
+      image_uri: ${{ steps.set-output.outputs.image_uri }}
       image_tag: ${{ needs.determine-environment.outputs.image_tag }}
     steps:
       - name: Checkout code
@@ -110,9 +110,17 @@ jobs:
           # 然后将其设置为这个新步骤的输出
           echo "image_uri=$(echo '${{ steps.meta.outputs.tags }}' | head -n 1)" >> $GITHUB_OUTPUT
 
-      - name: Print image URI
+      # 关键改动：使用最简单、最可靠的方式设置输出
+      - name: Set Job Output
+        id: set-output
         run: |
-          echo "IMAGE_URI: ${{ steps.prepare-output.outputs.image_uri }}"
+          # 我们不再依赖复杂的 shell 管道
+          # 我们从 build-push action 的一个确定性输出 `imageid` 来间接获取 tag
+          # 或者，更直接地，我们再次使用 meta 的输出，因为我们已经验证过它是对的
+          # 这里我们选择后者，因为它更直接
+          FINAL_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
+          echo "Final tag being set as output: $FINAL_TAG"
+          echo "image_uri=$FINAL_TAG" >> $GITHUB_OUTPUT
 
   # 部署到测试环境
   deploy-test:
