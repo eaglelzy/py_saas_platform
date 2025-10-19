@@ -1,16 +1,18 @@
-name: Build, Push, and Deploy to ECS
+name: Build, Push, and Deploy Production
 
 on:
   push:
     branches:
       - 'release/*'
     tags:
-      - 'v*'            # Trigger on pushes of tags that start with 'v' (e.g., v1.0, v1.0.1)
+      - 'v*'
 
 jobs:
-  # --- 任务一：构建并推送镜像 ---
   build-and-push-image:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+      image_name: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform
 
     steps:
       - name: Checkout repository
@@ -29,7 +31,6 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
-            # 将分支名中的斜杠替换为下划线
             SAFE_TAG=$(echo "${{ github.ref_name }}" | sed 's/\//_/g')
             echo "tag=$SAFE_TAG" >> $GITHUB_OUTPUT
           else
@@ -42,16 +43,14 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${{ steps.tag.outputs.tag }}
+          tags: ${{ steps.outputs.image_name }}:${{ steps.outputs.image_tag }}
 
-  # --- 任务二：部署到 ECS 实例 ---
-  deploy-to-ecs:
-    if: startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/release/')
+  deploy-to-prod-server:
     needs: build-and-push-image
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Deploy to Alibaba Cloud ECS
+      - name: Deploy to Production Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.ECS_SERVER_IP }}
@@ -59,51 +58,41 @@ jobs:
           key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
           script: |
             set -e
-
-            IMAGE_VERSION_TAG="${{ github.ref_name }}"
-            # 将分支名中的斜杠替换为下划线，以便创建合法的镜像标签
-            SAFE_IMAGE_TAG="${IMAGE_VERSION_TAG//\//_}"
             
-            echo "GITHUB_REF: ${{ github.ref }}"
-            echo "GITHUB_REF_NAME: ${{ github.ref_name }}"
-            if [${{ startsWith(github.ref, 'refs/heads/release/') }} ]]; then
-              CONTAINER_NAME="saas_platform_test"
-              HOST_PORT="8080"
-            else
-              CONTAINER_NAME="saas_platform_prod"
-              HOST_PORT="8888"
-            fi
-            echo "CONTAINER_NAME: $CONTAINER_NAME"
-            echo "HOST_PORT: $HOST_PORT"
+            # 导航到服务器上的项目目录
+            cd /path/to/your/project/py_saas_platform
 
-            FULL_IMAGE_TAG="${{ secrets.ACR_REGISTRY }}/eaglelzy/saas_platform:${SAFE_IMAGE_TAG}"
-            SHORT_IMAGE_NAME="saas_platform:${SAFE_IMAGE_TAG}"
+            # 拉取最新的代码 (为了获取最新的 docker-compose.prod.yml)
+            echo "--- Pulling latest source code ---"
+            git pull
 
-            echo "--- Starting RELEASE Deployment ---"
-            echo "Deploying version: ${SHORT_IMAGE_NAME}"
-            echo "Full Image to deploy: $FULL_IMAGE_TAG"
+            # 设置部署所需的环境变量 (从 GitHub Secrets 读取)
+            export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push-image.outputs.image_name }}:${{ needs.build-and-push-image.outputs.image_tag }}"
+            export APP_PORT=${{ secrets.PROD_APP_PORT }}
+            export DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
+            export SECRET_KEY=${{ secrets.PROD_SECRET_KEY }}
+            export PROJECT_NAME="智能申校助手"
+            export POSTGRES_DB=${{ secrets.PROD_POSTGRES_DB }}
+            export POSTGRES_USER=${{ secrets.PROD_POSTGRES_USER }}
+            export POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}
 
+            # 登录到镜像仓库
             echo "${{ secrets.ACR_PASSWORD }}" | docker login --username=${{ secrets.ACR_USERNAME }} --password-stdin ${{ secrets.ACR_REGISTRY }}
 
-            docker pull $FULL_IMAGE_TAG
+            # 使用 docker-compose 拉取 app 服务的新镜像
+            echo "--- Pulling new application image ---"
+            docker-compose -f docker-compose.prod.yml pull app
 
-            echo "Tagging image ${FULL_IMAGE_TAG} as ${SHORT_IMAGE_NAME}"
-            docker tag $FULL_IMAGE_TAG $SHORT_IMAGE_NAME
-            
-            # 删除长名字的镜像以节省空间
-            echo "Removing long-named image: ${FULL_IMAGE_TAG}"
-            docker rmi $FULL_IMAGE_TAG
+            # 运行数据库迁移
+            echo "--- Running database migrations ---"
+            docker-compose -f docker-compose.prod.yml run --rm app alembic upgrade head
 
-            if [ "$(docker ps -a -f name=$CONTAINER_NAME)" ]; then
-                echo "Stopping and removing existing container..."
-                docker stop $CONTAINER_NAME
-                docker rm $CONTAINER_NAME
-            fi
+            # 使用 docker-compose 部署整个应用栈
+            echo "--- Deploying new version ---"
+            docker-compose -f docker-compose.prod.yml up -d
 
-            echo "Starting new container with ${SHORT_IMAGE_NAME}..."
-            # Remember to map to the correct container port (e.g., 5000)
-            docker run -d --name $CONTAINER_NAME -p $HOST_PORT:8000 $SHORT_IMAGE_NAME
-
+            # 清理不再使用的旧镜像
+            echo "--- Cleaning up old images ---"
             docker image prune -f
 
-            echo "--- Deployment of ${SHORT_IMAGE_NAME} Successful ---"
+            echo "--- Deployment successful ---"

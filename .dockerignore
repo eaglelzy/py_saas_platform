@@ -4,7 +4,12 @@
 .dockerignore
 Dockerfile
 docker-compose.yml
+docker-compose.prod.yml  
 README.md
+
+# Environment files
+.env
+.env.example             
 
 # Python virtual environment
 venv/
@@ -29,6 +34,9 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+
+# Scripts
+scripts/                 # <-- 新增
 
 # OS-specific files
 .DS_Store
