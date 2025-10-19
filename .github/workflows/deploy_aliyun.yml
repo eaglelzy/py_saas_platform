@@ -153,17 +153,21 @@ jobs:
 
             echo "IMAGE_FULL_TAG: ${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-environment.outputs.image_tag }}-test"
 
-            export IMAGE_NAME_WITH_TAG="${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-environment.outputs.image_tag }}-test"
-            export APP_PORT=${{ secrets.TEST_APP_PORT || '8080' }}
-            export DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
-            export SECRET_KEY=${{ secrets.TEST_SECRET_KEY }}
-            export PROJECT_NAME="留学助手平台-测试环境"
-            export POSTGRES_DB=${{ secrets.TEST_POSTGRES_DB }}
-            export POSTGRES_USER=${{ secrets.TEST_POSTGRES_USER }}
-            export POSTGRES_PASSWORD=${{ secrets.TEST_POSTGRES_PASSWORD }}
-            export ENV=test
-            export DEBUG=true
-            export LOG_LEVEL=DEBUG
+            # 生成 .env 文件
+            cat > .env << EOF
+
+            IMAGE_NAME_WITH_TAG=${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-environment.outputs.image_tag }}-test
+            APP_PORT=${{ secrets.TEST_APP_PORT || '8080' }}
+            DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
+            SECRET_KEY=${{ secrets.TEST_SECRET_KEY }}
+            PROJECT_NAME=留学助手平台-测试环境
+            POSTGRES_DB=${{ secrets.TEST_POSTGRES_DB }}
+            POSTGRES_USER=${{ secrets.TEST_POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.TEST_POSTGRES_PASSWORD }}
+            ENV=test
+            DEBUG=true
+            LOG_LEVEL=DEBUG
+            EOF
 
       - name: Deploy to Test Environment
         uses: appleboy/ssh-action@v1.0.3
