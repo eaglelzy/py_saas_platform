@@ -91,6 +91,11 @@ jobs:
           tags: |
             type=raw,value=${{ needs.determine-environment.outputs.image_tag }}-${{ needs.determine-environment.outputs.environment }}
 
+
+      - name: Print image tag
+        run: |
+          echo "META_IMAGE_TAG: ${{ steps.meta.outputs.tags }}"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -119,7 +124,6 @@ jobs:
       #     # target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
       - name: Print image tag
         run: |
-          echo "IMAGE_TAG: ${{ steps.meta.outputs.tags }}-${{ needs.determine-environment.outputs.environment }}"
           echo "IMAGE_URI: ${{ needs.build-and-push.outputs.image_uri }}"
 
       # 关键步骤：在服务器上生成 .env 文件
