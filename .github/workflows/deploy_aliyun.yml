@@ -131,8 +131,10 @@ jobs:
             # 使用 cat 和 heredoc 语法覆盖写入 .env 文件
             # 这种方法对于多行变量和特殊字符非常安全
             # postgresql://lizy:Lzy142857@db:5433/study_assitant_db_test
+            echo "IMAGE_NAME_WITH_TAG: ${{ steps.meta.outputs.tags }}"
+            echo "IMAGE_NAME_WITH_TAG: ${{ needs.build-and-push.outputs.image_uri }}"
             cat << EOF > .env
-            IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"
+            IMAGE_NAME_WITH_TAG="${{ steps.meta.outputs.tags }}"
             APP_PORT=${{ secrets.TEST_APP_PORT || '8080' }}
             DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
             SECRET_KEY=${{ secrets.TEST_SECRET_KEY }}
