@@ -130,6 +130,7 @@ jobs:
         with:
           host: ${{ secrets.TEST_ECS_SERVER_IP }}
           username: ${{ secrets.TEST_ECS_USERNAME }}
+          key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
           source: |-
             docker-compose.prod.yml
           target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
