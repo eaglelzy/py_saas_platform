@@ -108,15 +108,43 @@ jobs:
     if: needs.determine-environment.outputs.environment == 'test'
     runs-on: ubuntu-latest
     steps:
-      # - name: Copy docker-compose file via scp
-      #   uses: appleboy/scp-action@v1
-      #   with:
-      #     host: ${{ secrets.TEST_ECS_SERVER_IP }}
-      #     username: ${{ secrets.TEST_ECS_USERNAME }}
-      #     key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
-      #     source: "docker-compose.prod.yml"
-      #     target: "/www/wwwroot/saas_platform/test"
-      #     # target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
+      - name: Copy docker-compose file via scp
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.TEST_ECS_SERVER_IP }}
+          username: ${{ secrets.TEST_ECS_USERNAME }}
+          key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
+          source: "docker-compose.prod.yml"
+          target: "/www/wwwroot/saas_platform/test"
+          # target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
+
+      # 关键步骤：在服务器上生成 .env 文件
+      - name: Create .env file on ECS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.ECS_SERVER_IP }}
+          username: ${{ secrets.ECS_USERNAME }}
+          key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
+          script: |
+            # 进入工作目录
+            cd "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
+            # 使用 cat 和 heredoc 语法覆盖写入 .env 文件
+            # 这种方法对于多行变量和特殊字符非常安全
+            # postgresql://lizy:Lzy142857@db:5433/study_assitant_db_test
+            cat << EOF > .env
+            IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"
+            APP_PORT=${{ secrets.TEST_APP_PORT || '8080' }}
+            DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
+            SECRET_KEY=${{ secrets.TEST_SECRET_KEY }}
+            PROJECT_NAME="留学助手平台-测试环境"
+            POSTGRES_DB=${{ secrets.TEST_POSTGRES_DB }}
+            POSTGRES_USER=${{ secrets.TEST_POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.TEST_POSTGRES_PASSWORD }}
+            ENV=test
+            DEBUG=true
+            LOG_LEVEL=DEBUG
+            EOF
+
 
       - name: Deploy to Test Environment
         uses: appleboy/ssh-action@v1.0.3
@@ -211,7 +239,6 @@ jobs:
       #     source: "docker-compose.prod.yml"
       #     target: "/www/wwwroot/saas_platform/prod"
       #     # target: "${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}"
-
       - name: Deploy to Production Environment
         uses: appleboy/ssh-action@v1.0.3
         with:
