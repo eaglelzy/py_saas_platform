@@ -121,7 +121,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.extract-tag.outputs.short_tag }}       # 短镜像标签名称
-      image_uri: ${{ steps.meta.outputs.tags }}                   # 完整镜像URI
     steps:
       # 步骤1: 检出代码
       - name: Checkout code
@@ -188,7 +187,7 @@ jobs:
         run: |
           echo "🎯 构建任务输出:"
           echo "   image_tag (短标签): ${{ steps.extract-tag.outputs.short_tag }}"
-          echo "   image_uri (完整URI): ${{ steps.meta.outputs.tags }}"
+          echo "   image_name_with_tag (完整URI): ${{ steps.meta.outputs.tags }}"
           echo "   image_labels: ${{ steps.meta.outputs.labels }}"
 
   # ==========================================================================
@@ -231,8 +230,8 @@ jobs:
             # ==================================================================
             # 测试环境变量设置
             # ==================================================================
-            export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"                 # 完整镜像名称
             export SHORT_IMAGE_NAME="${{ needs.build-and-push.outputs.image_tag }}"                    # 短镜像标签名称
+            export IMAGE_NAME_WITH_TAG="${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-environment-and-tag.outputs.image_tag }}"                 # 完整镜像名称
             
             # 打印镜像信息用于调试
             echo "🔍 镜像信息调试:"
@@ -253,7 +252,7 @@ jobs:
             echo "${{ secrets.ACR_PASSWORD }}" | docker login --username=${{ secrets.ACR_USERNAME }} --password-stdin ${{ secrets.ACR_REGISTRY }}
             
             # 拉取新镜像
-            echo "📦 拉取新镜像: $IMAGE_NAME_WITH_TAG"
+            echo "📦 拉取新镜像..."
             docker-compose -f docker-compose.test.yml pull app
             
             # 备份数据库
@@ -347,8 +346,8 @@ jobs:
             # 镜像标签配置
             # ==================================================================
             # 使用构建任务输出的镜像信息
-            export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"                 # 完整镜像名称
             export SHORT_IMAGE_NAME="${{ needs.build-and-push.outputs.image_tag }}"                    # 短镜像标签名称
+            export IMAGE_NAME_WITH_TAG="${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-environment-and-tag.outputs.image_tag }}-prod"  # 完整镜像名称
             
             # 打印镜像信息用于调试
             echo "🔍 镜像信息调试:"
