@@ -1,5 +1,3 @@
-version: '3.8'
-
 # 设置项目名称，这将作为所有容器名称的前缀
 name: study-assistant
 

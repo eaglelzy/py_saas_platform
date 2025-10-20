@@ -251,23 +251,65 @@ def setup_logging(
     """
     设置应用程序日志配置
     
-    Args:
-        log_level (str): 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        use_colors (bool): 是否使用彩色输出
-        log_to_file (bool): 是否记录到文件
-        environment (str): 环境类型 (development, production)
-    """
-    # 在生产环境中默认不使用颜色
-    if environment == "production":
-        use_colors = False
-        log_to_file = True
+    优先使用环境变量，如果没有设置则使用默认值：
+    - DEBUG: 控制是否启用调试模式（影响日志级别和彩色输出）
+    - LOG_LEVEL: 设置日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    - ENV: 设置环境类型 (development, test, production)
     
-    config = get_logging_config(use_colors, log_level, log_to_file)
+    Args:
+        log_level (str, optional): 日志级别，如果为None则从环境变量获取
+        use_colors (bool, optional): 是否使用彩色输出，如果为None则根据环境变量自动判断
+        log_to_file (bool, optional): 是否记录到文件，如果为None则根据环境变量自动判断
+        environment (str, optional): 环境类型，如果为None则从环境变量获取
+    """
+    # 从环境变量获取配置
+    debug_mode = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes", "on")
+    env_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    env_environment = os.getenv("ENV", "development")
+    
+    # 使用参数或环境变量
+    final_log_level = log_level or env_log_level
+    final_environment = environment or env_environment
+    
+    # 根据DEBUG环境变量自动设置日志级别
+    if debug_mode and log_level is None:
+        final_log_level = "DEBUG"
+    
+    # 根据环境变量自动设置彩色输出
+    if use_colors is None:
+        if debug_mode:
+            use_colors = True
+        elif final_environment == "production":
+            use_colors = False
+        else:
+            use_colors = True
+    
+    # 根据环境变量自动设置文件日志
+    if log_to_file is None:
+        if final_environment in ("production", "test"):
+            log_to_file = True
+        else:
+            log_to_file = debug_mode
+    
+    # 验证日志级别
+    valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    if final_log_level not in valid_levels:
+        print(f"警告: 无效的日志级别 '{final_log_level}'，使用默认级别 'INFO'")
+        final_log_level = "INFO"
+    
+    config = get_logging_config(use_colors, final_log_level, log_to_file)
     logging.config.dictConfig(config)
     
     # 输出配置信息
     logger = logging.getLogger(__name__)
-    logger.info(f"日志系统已初始化 - 级别: {log_level}, 彩色: {use_colors}, 文件: {log_to_file}")
+    logger.info(
+        f"日志系统已初始化 - "
+        f"级别: {final_log_level}, "
+        f"彩色: {use_colors}, "
+        f"文件: {log_to_file}, "
+        f"环境: {final_environment}, "
+        f"调试模式: {debug_mode}"
+    )
 
 
 def get_logger(name: str, extra_info: Optional[Dict[str, Any]] = None) -> logging.Logger:
@@ -336,13 +378,51 @@ def log_api_request(logger: logging.Logger, method: str, path: str,
     )
 
 
-# 默认的日志配置
-LOGGING_CONFIG = get_logging_config(
-    use_colors=COLORLOG_AVAILABLE,
-    log_level=os.getenv("LOG_LEVEL", "INFO"),
-    log_to_file=True
-)
+def get_default_logging_config():
+    """
+    获取基于环境变量的默认日志配置
+    
+    这个函数不会自动应用配置，需要手动调用 setup_logging() 来应用配置。
+    """
+    # 从环境变量获取配置
+    debug_mode = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes", "on")
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    environment = os.getenv("ENV", "development")
+    
+    # 根据DEBUG环境变量自动设置日志级别
+    if debug_mode:
+        log_level = "DEBUG"
+    
+    # 根据环境变量自动设置彩色输出
+    if debug_mode:
+        use_colors = True
+    elif environment == "production":
+        use_colors = False
+    else:
+        use_colors = COLORLOG_AVAILABLE
+    
+    # 根据环境变量自动设置文件日志
+    if environment in ("production", "test"):
+        log_to_file = True
+    else:
+        log_to_file = debug_mode
+    
+    return get_logging_config(use_colors, log_level, log_to_file)
+
+
+def init_logging_from_env():
+    """
+    根据环境变量快速初始化日志系统
+    
+    这是一个便捷函数，会根据当前的环境变量自动配置日志系统。
+    推荐在应用程序启动时调用此函数。
+    """
+    setup_logging()
+
+
+# 默认的日志配置（基于环境变量）
+LOGGING_CONFIG = get_default_logging_config()
 
 # 注意：不要在模块导入时自动调用 setup_logging
 # 这会导致重复初始化日志系统
-# 应该在应用程序启动时手动调用 setup_logging()
+# 应该在应用程序启动时手动调用 setup_logging() 或 init_logging_from_env()
