@@ -61,9 +61,9 @@ jobs:
             # 手动触发时使用当前分支名或提交 SHA 作为标签
             if [[ "${{ github.ref }}" == refs/heads/* ]]; then
               SAFE_TAG=$(echo "${{ github.ref_name }}" | sed 's/\//_/g')
-              echo "tag=$SAFE_TAG" >> $GITHUB_OUTPUT
+              echo "image_tag=$SAFE_TAG" >> $GITHUB_OUTPUT
             else
-              echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+              echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
             fi
             
           elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
@@ -75,7 +75,7 @@ jobs:
             # 发布分支：将分支名转换为安全的标签格式, 如 release/1.0.0 转换为 release_1.0.0
             SAFE_TAG=$(echo "${{ github.ref_name }}" | sed 's/\//_/g')
             echo "🔍 生成的标签: $SAFE_TAG"
-            echo "tag=$SAFE_TAG" >> $GITHUB_OUTPUT
+            echo "image_tag=$SAFE_TAG" >> $GITHUB_OUTPUT
             
           elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             # 推送版本标签时，检查是否来自 main 分支
@@ -84,32 +84,32 @@ jobs:
               # 从 main 分支推送的版本标签：部署到生产环境
               echo "environment=prod" >> $GITHUB_OUTPUT
               echo "should_deploy=true" >> $GITHUB_OUTPUT
-              echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+              echo "image_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
             else
               # 从其他分支推送的版本标签：不触发部署
               echo "environment=none" >> $GITHUB_OUTPUT
               echo "should_deploy=false" >> $GITHUB_OUTPUT
-              echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+              echo "image_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
             fi
             
           elif [[ "${{ github.ref }}" == refs/heads/develop ]]; then
             # develop 分支：部署到测试环境，使用 latest 标签
             echo "environment=test" >> $GITHUB_OUTPUT
             echo "should_deploy=true" >> $GITHUB_OUTPUT
-            echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "image_tag=latest" >> $GITHUB_OUTPUT
             
           else
             # 其他情况：不部署
             echo "environment=none" >> $GITHUB_OUTPUT
             echo "should_deploy=false" >> $GITHUB_OUTPUT
-            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
           fi
           
           # 调试输出：显示最终的结果
           echo "🎯 最终输出结果:"
           echo "   environment: $(cat $GITHUB_OUTPUT | grep '^environment=' | cut -d'=' -f2)"
           echo "   should_deploy: $(cat $GITHUB_OUTPUT | grep '^should_deploy=' | cut -d'=' -f2)"
-          echo "   tag: $(cat $GITHUB_OUTPUT | grep '^tag=' | cut -d'=' -f2)"
+          echo "   image_tag: $(cat $GITHUB_OUTPUT | grep '^image_tag=' | cut -d'=' -f2)"
 
   # ==========================================================================
   # 任务2: 构建和推送 Docker 镜像
