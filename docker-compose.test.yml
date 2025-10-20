@@ -36,6 +36,8 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - test_db_data:/var/lib/postgresql/data
+      # 挂载初始化脚本
+      - ./scripts/init-database.sql:/docker-entrypoint-initdb.d/01-init-database.sql
     networks:
       - test-network
 
