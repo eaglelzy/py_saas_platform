@@ -249,19 +249,19 @@ jobs:
             
             # 拉取新镜像
             echo "📦 拉取新镜像: $IMAGE_NAME_WITH_TAG"
-            docker-compose -f docker-compose.test.yml pull app
+            docker-compose -f docker-compose.prod.yml pull app
             
             # 备份数据库
             echo "💾 备份数据库..."
-            docker-compose -f docker-compose.test.yml exec -T db pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_test_$(date +%Y%m%d_%H%M%S).sql || true
+            docker-compose -f docker-compose.prod.yml exec -T db pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_test_$(date +%Y%m%d_%H%M%S).sql || true
             
             # 运行数据库迁移
             echo "🔄 运行数据库迁移..."
-            docker-compose -f docker-compose.test.yml run --rm app alembic upgrade head || true
+            docker-compose -f docker-compose.prod.yml run --rm app alembic upgrade head || true
             
             # 部署应用
             echo "🚀 部署应用..."
-            docker-compose -f docker-compose.test.yml up -d
+            docker-compose -f docker-compose.prod.yml up -d
             
             # 等待服务启动
             echo "⏳ 等待服务启动..."
@@ -438,7 +438,7 @@ jobs:
   # 生成部署报告并发送通知
   # ==========================================================================
   notify:
-    needs: [determine-environment-and-tag, deploy-test, deploy-production]  # 依赖所有部署任务
+    needs: [determine-environment-and-tag, build-and-push, deploy-test, deploy-production]  # 依赖所有部署任务
     if: always() && needs.determine-environment-and-tag.outputs.should_deploy == 'true'  # 总是执行，但只在需要部署时
     runs-on: ubuntu-latest
     steps:
