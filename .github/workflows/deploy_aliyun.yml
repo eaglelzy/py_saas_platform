@@ -153,8 +153,8 @@ jobs:
         with:
           images: ${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}  # 镜像名称
           tags: |
-            # 生成镜像标签：{image_tag}-{environment}
-            type=raw,value=${{ needs.determine-environment-and-tag.outputs.image_tag }}-${{ needs.determine-environment-and-tag.outputs.environment }}
+            # 生成镜像标签：{image_tag}
+            type=raw,value=${{ needs.determine-environment-and-tag.outputs.image_tag }}
 
       # 步骤6: 构建并推送 Docker 镜像
       - name: Build and push Docker image
@@ -216,7 +216,7 @@ jobs:
             # 环境变量配置
             # ==================================================================
             export PROJECT_PATH="${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"  # 项目部署路径
-            export APP_PORT="${{ secrets.TEST_APP_PORT || '8080' }}"                                    # 应用端口
+            export APP_PORT="${{ secrets.TEST_APP_PORT || '8083' }}"                                    # 应用端口
             export IMAGE_TAG="${{ needs.determine-environment-and-tag.outputs.image_tag }}"                # 镜像标签
             
             # 导航到项目目录
@@ -230,13 +230,11 @@ jobs:
             # ==================================================================
             # 测试环境变量设置
             # ==================================================================
-            export SHORT_IMAGE_NAME="${{ needs.build-and-push.outputs.image_tag }}"                    # 短镜像标签名称
             export IMAGE_NAME_WITH_TAG="${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-environment-and-tag.outputs.image_tag }}"                 # 完整镜像名称
             
             # 打印镜像信息用于调试
             echo "🔍 镜像信息调试:"
             echo "   IMAGE_NAME_WITH_TAG: $IMAGE_NAME_WITH_TAG"
-            echo "   SHORT_IMAGE_NAME: $SHORT_IMAGE_NAME"
             export DATABASE_URL="${{ secrets.TEST_DATABASE_URL }}"                                      # 数据库连接 URL
             export SECRET_KEY="${{ secrets.TEST_SECRET_KEY }}"                                          # 应用密钥
             export PROJECT_NAME="留学助手平台-测试环境"                                                   # 项目名称
@@ -281,10 +279,6 @@ jobs:
               echo "⏳ 等待服务启动... ($i/10)"
               sleep 10
             done
-            
-            # 为镜像添加一个更短的别名，方便查看
-            echo "🏷️ 为镜像添加短标签: $SHORT_IMAGE_NAME..."
-            docker tag $IMAGE_NAME_WITH_TAG $SHORT_IMAGE_NAME
             
             # 清理旧镜像
             echo "🧹 清理旧镜像..."
@@ -346,13 +340,11 @@ jobs:
             # 镜像标签配置
             # ==================================================================
             # 使用构建任务输出的镜像信息
-            export SHORT_IMAGE_NAME="${{ needs.build-and-push.outputs.image_tag }}"                    # 短镜像标签名称
             export IMAGE_NAME_WITH_TAG="${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-environment-and-tag.outputs.image_tag }}-prod"  # 完整镜像名称
             
             # 打印镜像信息用于调试
             echo "🔍 镜像信息调试:"
             echo "   IMAGE_NAME_WITH_TAG: $IMAGE_NAME_WITH_TAG"
-            echo "   SHORT_IMAGE_NAME: $SHORT_IMAGE_NAME"
             
             # ==================================================================
             # 镜像仓库登录
@@ -431,10 +423,6 @@ jobs:
             # ==================================================================
             # 部署后清理
             # ==================================================================
-            # 为镜像添加短标签，方便查看
-            echo "🏷️ 为镜像添加短标签: $SHORT_IMAGE_NAME..."
-            docker tag $IMAGE_NAME_WITH_TAG $SHORT_IMAGE_NAME
-            
             # 清理未使用的镜像
             echo "🧹 清理旧镜像..."
             docker image prune -f
