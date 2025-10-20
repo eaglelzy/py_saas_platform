@@ -85,7 +85,12 @@ class User(Base, TimestampMixin):
     __tablename__ = "users"
     
     # 主键字段
-    id = Column(Integer, primary_key=True, comment="用户唯一标识符", index=True)
+    id = Column(
+        Integer, 
+        primary_key=True, 
+        comment="用户唯一标识符",
+        index=True
+    )
     
     # 基本信息字段
     name = Column(
@@ -135,16 +140,14 @@ class User(Base, TimestampMixin):
     )
     tenant = relationship(
         "Tenant", 
-        back_populates="users",
-        comment="所属租户"
+        back_populates="users"
     )
     
     # 学生关系：用户负责管理多个学生
     assigned_students = relationship(
         "Student", 
         back_populates="user",
-        lazy="dynamic",  # 使用动态加载，避免一次性加载所有学生
-        comment="负责的学生"
+        lazy="dynamic"  # 使用动态加载，避免一次性加载所有学生
     )
     
     def __repr__(self):

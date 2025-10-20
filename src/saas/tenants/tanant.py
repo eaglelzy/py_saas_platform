@@ -92,8 +92,7 @@ class Tenant(Base, TimestampMixin):
         # "dynamic": 返回一个查询对象而不是实际的用户列表
         # - 优点：可以进一步过滤和分页，性能更好
         # - 用法：tenant.users.filter(User.is_active == True).all()
-        lazy="dynamic",  
-        comment="该租户下的所有用户（顾问）"
+        lazy="dynamic"
     )
     
     # 一个租户拥有多个学生（客户）
@@ -114,8 +113,7 @@ class Tenant(Base, TimestampMixin):
         # lazy: 延迟加载策略
         # 使用动态加载避免在查询租户时立即加载所有学生数据
         # 这对于有大量学生的租户来说非常重要
-        lazy="dynamic",  
-        comment="该租户下的所有学生（客户）"
+        lazy="dynamic"
     )
     
     def __repr__(self):

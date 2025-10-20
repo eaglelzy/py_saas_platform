@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
 
     class Config:
-        env_file = ".env"
+        env_file = ".env.test"
         env_file_encoding = "utf-8"
         case_sensitive = False
         # [新增] 告诉 Pydantic 忽略 .env 文件中未在上面定义的额外变量
