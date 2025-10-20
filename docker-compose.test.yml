@@ -1,0 +1,57 @@
+# 测试环境 Docker Compose 配置
+name: study-assistant-test
+
+services:
+  # 留学助手应用 - 测试环境
+  app:
+    # 镜像全名将由 CI/CD 流程通过环境变量注入
+    image: ${IMAGE_NAME_WITH_TAG}
+    container_name: app-test
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8083}:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - PROJECT_NAME=${PROJECT_NAME}
+      - ENV=test
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    networks:
+      - test-network
+    depends_on:
+      - db
+      - redis
+
+  # 留学助手数据库 - 测试环境
+  db:
+    image: postgres:14-alpine
+    container_name: db-test
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-5435}:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - test_db_data:/var/lib/postgresql/data
+    networks:
+      - test-network
+
+  # 留学助手 Redis - 测试环境
+  redis:
+    image: redis:7-alpine
+    container_name: redis-test
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6382}:6379"
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  test_db_data:

@@ -2,6 +2,7 @@ name: study-assistant
 services:
   app:
     # 镜像全名将由 CI/CD 流程通过环境变量注入
+    # crpi-iyq1iqfffn9ehscp.cn-beijing.personal.cr.aliyuncs.com/eaglelzy/saas_platform
     image: ${IMAGE_NAME_WITH_TAG}
     container_name: app
     restart: always
