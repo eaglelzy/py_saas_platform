@@ -1,12 +1,18 @@
+# =============================================================================
+# GitHub Actions 工作流配置文件
+# 用于自动化部署到阿里云 ECS 服务器
+# 支持测试环境和生产环境的部署
+# =============================================================================
 name: Deploy to Aliyun (Test & Production)
 
+# 触发条件配置
 on:
   push:
     branches:
-      - 'release/*'      # 推送到 release/* 分支触发测试环境部署
+      - 'release/*'      # 推送到 release/* 分支时触发测试环境部署
     tags:
-      - 'v*'             # 推送版本标签触发生产环境部署
-  workflow_dispatch:     # 手动触发
+      - 'v*'             # 推送版本标签时触发部署（只有main分支的标签部署到生产环境，其他分支的标签不触发部署）
+  workflow_dispatch:     # 支持手动触发部署
     inputs:
       environment:
         description: '选择部署环境'
@@ -14,204 +20,186 @@ on:
         default: 'test'
         type: choice
         options:
-          - test
-          - production
+          - test          # 测试环境选项
+          - prod          # 生产环境选项
 
+# 全局环境变量配置
 env:
-  IMAGE_NAME: eaglelzy/saas_platform
+  IMAGE_NAME: eaglelzy/saas_platform    # Docker 镜像名称
 
+# =============================================================================
+# 工作流任务定义
+# =============================================================================
 jobs:
-  # 确定部署环境
-  determine-environment:
+  # ==========================================================================
+  # 任务1: 确定部署环境和生成镜像标签
+  # 根据触发条件判断部署到哪个环境，并生成相应的镜像标签
+  # 部署策略：
+  # - release/* 分支 → 测试环境
+  # - main 分支的 v* 标签 → 生产环境
+  # - 其他分支的 v* 标签 → 不触发部署
+  # - develop 分支 → 测试环境
+  # ==========================================================================
+  determine-environment-and-tag:
     runs-on: ubuntu-latest
     outputs:
-      environment: ${{ steps.env.outputs.environment }}
-      image_tag: ${{ steps.tag.outputs.tag }}
-      should_deploy: ${{ steps.env.outputs.should_deploy }}
+      environment: ${{ steps.config.outputs.environment }}    # 部署环境 (test/prod)
+      image_tag: ${{ steps.config.outputs.image_tag }}        # 镜像标签
+      should_deploy: ${{ steps.config.outputs.should_deploy }} # 是否应该部署
     steps:
-      - name: Determine deployment environment
-        id: env
+      # 步骤1: 确定部署环境和生成镜像标签
+      - name: Determine deployment environment and generate image tag
+        id: config
         run: |
+          # 根据不同的触发条件确定部署环境和镜像标签
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            # 手动触发：使用用户选择的环境
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+            echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
             echo "should_deploy=true" >> $GITHUB_OUTPUT
+            
+            # 手动触发时使用当前分支名或提交 SHA 作为标签
+            if [[ "${{ github.ref }}" == refs/heads/* ]]; then
+              SAFE_TAG=$(echo "${{ github.ref_name }}" | sed 's/\//_/g')
+              echo "tag=$SAFE_TAG" >> $GITHUB_OUTPUT
+            else
+              echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+            fi
+            
           elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            # 推送到 release/* 分支：部署到测试环境
             echo "environment=test" >> $GITHUB_OUTPUT
             echo "should_deploy=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "environment=production" >> $GITHUB_OUTPUT
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
-          else
-            echo "environment=none" >> $GITHUB_OUTPUT
-            echo "should_deploy=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Generate image tag
-        id: tag
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/heads/develop ]]; then
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            # 发布分支：将分支名转换为安全的标签格式, 如 release/1.0.0 转换为 release_1.0.0
             SAFE_TAG=$(echo "${{ github.ref_name }}" | sed 's/\//_/g')
             echo "tag=$SAFE_TAG" >> $GITHUB_OUTPUT
+            
           elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            # 推送版本标签时，检查是否来自 main 分支
+            # 通过检查标签指向的提交是否在 main 分支上
+            if git branch -r --contains ${{ github.ref_name }} | grep -q "origin/main"; then
+              # 从 main 分支推送的版本标签：部署到生产环境
+              echo "environment=prod" >> $GITHUB_OUTPUT
+              echo "should_deploy=true" >> $GITHUB_OUTPUT
+              echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            else
+              # 从其他分支推送的版本标签：不触发部署
+              echo "environment=none" >> $GITHUB_OUTPUT
+              echo "should_deploy=false" >> $GITHUB_OUTPUT
+              echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            fi
+            
+          elif [[ "${{ github.ref }}" == refs/heads/develop ]]; then
+            # develop 分支：部署到测试环境，使用 latest 标签
+            echo "environment=test" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "tag=latest" >> $GITHUB_OUTPUT
+            
           else
+            # 其他情况：不部署
+            echo "environment=none" >> $GITHUB_OUTPUT
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
             echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
           fi
 
-  # 构建和推送镜像
+  # ==========================================================================
+  # 任务2: 构建和推送 Docker 镜像
+  # 构建应用程序的 Docker 镜像并推送到阿里云容器镜像服务
+  # ==========================================================================
   build-and-push:
-    needs: determine-environment
-    if: needs.determine-environment.outputs.should_deploy == 'true'
+    needs: determine-environment-and-tag  # 依赖环境确定和标签生成任务
+    if: needs.determine-environment-and-tag.outputs.should_deploy == 'true'  # 只有需要部署时才执行
     runs-on: ubuntu-latest
-    outputs:
-      image_uri: ${{ steps.set-output.outputs.image_uri }}
-      image_tag: ${{ needs.determine-environment.outputs.image_tag }}
     steps:
+      # 步骤1: 检出代码
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 步骤2: 设置 Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # 步骤3: 登录阿里云容器镜像服务
       - name: Login to Aliyun Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.ACR_REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          registry: ${{ secrets.ACR_REGISTRY }}      # 阿里云容器镜像服务地址
+          username: ${{ secrets.ACR_USERNAME }}     # 用户名
+          password: ${{ secrets.ACR_PASSWORD }}     # 密码
 
+      # 步骤4: 提取镜像元数据
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}  # 镜像名称
           tags: |
-            type=raw,value=${{ needs.determine-environment.outputs.image_tag }}-${{ needs.determine-environment.outputs.environment }}
+            # 生成镜像标签：{image_tag}-{environment}
+            type=raw,value=${{ needs.determine-environment-and-tag.outputs.image_tag }}-${{ needs.determine-environment-and-tag.outputs.environment }}
 
+      # 步骤5: 构建并推送 Docker 镜像
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ needs.determine-environment.outputs.environment }}
-          cache-to: type=gha,mode=max,scope=${{ needs.determine-environment.outputs.environment }}
+          context: .                                                    # 构建上下文
+          file: ./Dockerfile                                           # Dockerfile 路径
+          push: true                                                   # 推送镜像
+          tags: ${{ steps.meta.outputs.tags }}                         # 镜像标签
+          labels: ${{ steps.meta.outputs.labels }}                     # 镜像标签
+          cache-from: type=gha,scope=${{ needs.determine-environment-and-tag.outputs.environment }}  # 构建缓存来源
+          cache-to: type=gha,mode=max,scope=${{ needs.determine-environment-and-tag.outputs.environment }}  # 构建缓存目标
 
-      - name: Prepare single-line image URI for output
-        id: prepare-output
-        run: |
-          # 从 meta 的输出中提取第一行（也就是我们需要的那个tag），并去除任何换行符
-          # 然后将其设置为这个新步骤的输出
-          echo "image_uri=$(echo '${{ steps.meta.outputs.tags }}' | head -n 1)" >> $GITHUB_OUTPUT
-
-      # 关键改动：使用最简单、最可靠的方式设置输出
-      - name: Set Job Output
-        id: set-output
-        run: |
-          # 我们不再依赖复杂的 shell 管道
-          # 我们从 build-push action 的一个确定性输出 `imageid` 来间接获取 tag
-          # 或者，更直接地，我们再次使用 meta 的输出，因为我们已经验证过它是对的
-          # 这里我们选择后者，因为它更直接
-          FINAL_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
-          echo "Final tag being set as output: $FINAL_TAG"
-          echo "image_uri=$FINAL_TAG" >> $GITHUB_OUTPUT
-
-  # 部署到测试环境
+  # ==========================================================================
+  # 任务3: 部署到测试环境
+  # 将构建好的镜像部署到测试环境的 ECS 服务器
+  # ==========================================================================
   deploy-test:
-    needs: [determine-environment, build-and-push]
-    if: needs.determine-environment.outputs.environment == 'test'
+    needs: [determine-environment-and-tag, build-and-push]  # 依赖环境确定和镜像构建任务
+    if: needs.determine-environment-and-tag.outputs.environment == 'test'  # 只有测试环境时才执行
     runs-on: ubuntu-latest
     steps:
-      # - name: Copy docker-compose file via scp
-      #   uses: appleboy/scp-action@v1
-      #   with:
-      #     host: ${{ secrets.TEST_ECS_SERVER_IP }}
-      #     username: ${{ secrets.TEST_ECS_USERNAME }}
-      #     key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
-      #     source: "docker-compose.prod.yml"
-      #     target: "/www/wwwroot/saas_platform/test"
-      #     # target: "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
-      # ========================= 终极调试步骤 =========================
-      - name: Dump entire needs context
-        run: |
-          echo "Dumping the entire 'needs' context as JSON:"
-          echo '${{ toJSON(needs) }}'
-      # ================================================================
-
-
-      # 关键步骤：在服务器上生成 .env 文件
-      - name: Create .env file on ECS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.TEST_ECS_SERVER_IP }}
-          username: ${{ secrets.TEST_ECS_USERNAME }}
-          key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
-          script: |
-            # 进入工作目录
-            cd "${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"
-            # 使用 cat 和 heredoc 语法覆盖写入 .env 文件
-            # 这种方法对于多行变量和特殊字符非常安全
-            # postgresql://lizy:Lzy142857@db:5433/study_assitant_db_test
-
-            echo "IMAGE_FULL_TAG: ${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-environment.outputs.image_tag }}-test"
-
-            # 生成 .env 文件
-            cat > .env << EOF
-
-            IMAGE_NAME_WITH_TAG=${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-environment.outputs.image_tag }}-test
-            APP_PORT=${{ secrets.TEST_APP_PORT || '8080' }}
-            DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
-            SECRET_KEY=${{ secrets.TEST_SECRET_KEY }}
-            PROJECT_NAME=留学助手平台-测试环境
-            POSTGRES_DB=${{ secrets.TEST_POSTGRES_DB }}
-            POSTGRES_USER=${{ secrets.TEST_POSTGRES_USER }}
-            POSTGRES_PASSWORD=${{ secrets.TEST_POSTGRES_PASSWORD }}
-            ENV=test
-            DEBUG=true
-            LOG_LEVEL=DEBUG
-            EOF
-
+      # 步骤1: 部署到测试环境
       - name: Deploy to Test Environment
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.TEST_ECS_SERVER_IP }}
-          username: ${{ secrets.TEST_ECS_USERNAME }}
-          key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}
+          host: ${{ secrets.TEST_ECS_SERVER_IP }}        # 测试环境 ECS 服务器 IP
+          username: ${{ secrets.TEST_ECS_USERNAME }}    # SSH 用户名
+          key: ${{ secrets.TEST_ECS_SSH_PRIVATE_KEY }}  # SSH 私钥
           script: |
+            # 设置错误时退出
             set -e
             
             echo "🚀 开始部署到测试环境..."
             
+            # ==================================================================
+            # 环境变量配置
+            # ==================================================================
+            export PROJECT_PATH="${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}"  # 项目部署路径
+            export APP_PORT="${{ secrets.TEST_APP_PORT || '8080' }}"                                    # 应用端口
+            export IMAGE_TAG="${{ needs.determine-environment-and-tag.outputs.image_tag }}-test"                # 镜像标签
+            
             # 导航到项目目录
-            cd ${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}
+            cd $PROJECT_PATH
             
             # 确保项目目录存在
-            mkdir -p ${{ secrets.TEST_PROJECT_PATH || '/www/wwwroot/saas_platform/test' }}
+            mkdir -p $PROJECT_PATH
             
             echo "📦 准备部署环境..."
             
-            # 设置测试环境变量
-            # echo "🔍 调试信息："
-            # echo "镜像URI: ${{ needs.build-and-push.outputs.image_uri }}"
-            # export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"
-            # echo "设置的镜像标签: $IMAGE_NAME_WITH_TAG"
-            # export APP_PORT=${{ secrets.TEST_APP_PORT || '8080' }}
-            # # postgresql://lizy:Lzy142857@db:5433/study_assitant_db_test
-            # export DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
-            # export SECRET_KEY=${{ secrets.TEST_SECRET_KEY }}
-            # export PROJECT_NAME="留学助手平台-测试环境"
-            # export POSTGRES_DB=${{ secrets.TEST_POSTGRES_DB }}
-            # export POSTGRES_USER=${{ secrets.TEST_POSTGRES_USER }}
-            # export POSTGRES_PASSWORD=${{ secrets.TEST_POSTGRES_PASSWORD }}
-            # export ENV=test
-            # export DEBUG=true
-            # export LOG_LEVEL=DEBUG
+            # ==================================================================
+            # 测试环境变量设置
+            # ==================================================================
+            export IMAGE_NAME_WITH_TAG="${{ secrets.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:$IMAGE_TAG"  # 完整镜像名称
+            export SHORT_IMAGE_NAME="${{ env.IMAGE_NAME }}:$IMAGE_TAG"                                  # 短镜像标签名称
+            export DATABASE_URL="${{ secrets.TEST_DATABASE_URL }}"                                      # 数据库连接 URL
+            export SECRET_KEY="${{ secrets.TEST_SECRET_KEY }}"                                          # 应用密钥
+            export PROJECT_NAME="留学助手平台-测试环境"                                                   # 项目名称
+            export POSTGRES_DB="${{ secrets.TEST_POSTGRES_DB }}"                                        # 数据库名称
+            export POSTGRES_USER="${{ secrets.TEST_POSTGRES_USER }}"                                    # 数据库用户名
+            export POSTGRES_PASSWORD="${{ secrets.TEST_POSTGRES_PASSWORD }}"                            # 数据库密码
+            export ENV=test                                                                              # 环境标识
+            export DEBUG=true                                                                            # 调试模式
+            export LOG_LEVEL=DEBUG                                                                       # 日志级别
             
             # 登录镜像仓库
             echo "🔐 登录镜像仓库..."
@@ -248,6 +236,10 @@ jobs:
               sleep 10
             done
             
+            # 为镜像添加一个更短的别名，方便查看
+            echo "🏷️ 为镜像添加短标签: $SHORT_IMAGE_NAME..."
+            docker tag $IMAGE_NAME_WITH_TAG $SHORT_IMAGE_NAME
+            
             # 清理旧镜像
             echo "🧹 清理旧镜像..."
             docker image prune -f
@@ -255,134 +247,232 @@ jobs:
             echo "🎉 测试环境部署完成！"
             echo "📊 测试环境访问地址: http://${{ secrets.TEST_ECS_SERVER_IP}}:$APP_PORT"
 
-  # 部署到生产环境
+  # ==========================================================================
+  # 任务4: 部署到生产环境
+  # 将构建好的镜像部署到生产环境的 ECS 服务器
+  # ==========================================================================
   deploy-production:
-    needs: [determine-environment, build-and-push]
-    if: needs.determine-environment.outputs.environment == 'production'
+    needs: [determine-environment-and-tag, build-and-push]  # 依赖环境确定和镜像构建任务
+    if: needs.determine-environment-and-tag.outputs.environment == 'prod'  # 只有生产环境时才执行
     runs-on: ubuntu-latest
     steps:
-      # - name: Copy docker-compose file via scp
-      #   uses: appleboy/scp-action@v1.0.0
-      #   with:
-      #     host: ${{ secrets.ECS_SERVER_IP }}
-      #     username: ${{ secrets.ECS_USERNAME }}
-      #     key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
-      #     source: "docker-compose.prod.yml"
-      #     target: "/www/wwwroot/saas_platform/prod"
-      #     # target: "${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}"
+      # 步骤1: 部署到生产环境
       - name: Deploy to Production Environment
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.ECS_SERVER_IP }}
-          username: ${{ secrets.ECS_USERNAME }}
-          key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}
+          host: ${{ secrets.ECS_SERVER_IP }}        # 生产环境 ECS 服务器 IP
+          username: ${{ secrets.ECS_USERNAME }}    # SSH 用户名
+          key: ${{ secrets.ECS_SSH_PRIVATE_KEY }}  # SSH 私钥
           script: |
+            # 设置错误时退出
             set -e
             
             echo "🚀 开始部署到生产环境..."
             
+            # ==================================================================
+            # 项目路径配置
+            # ==================================================================
+            PROJECT_PATH="${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}"
+            
             # 导航到项目目录
-            cd ${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}
+            cd $PROJECT_PATH
             
             # 确保项目目录存在
-            mkdir -p ${{ secrets.PROD_PROJECT_PATH || '/www/wwwroot/saas_platform/prod' }}
+            mkdir -p $PROJECT_PATH
             
             echo "📦 准备生产环境部署..."
             
-            # 设置生产环境变量
-            echo "🔍 调试信息："
-            echo "镜像URI: ${{ needs.build-and-push.outputs.image_uri }}"
-            export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"
-            echo "设置的镜像标签: $IMAGE_NAME_WITH_TAG"
-            export APP_PORT=${{ secrets.PROD_APP_PORT || '8888' }}
-            export DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
-            export SECRET_KEY=${{ secrets.PROD_SECRET_KEY }}
-            export PROJECT_NAME="留学助手平台"
-            export POSTGRES_DB=${{ secrets.PROD_POSTGRES_DB }}
-            export POSTGRES_USER=${{ secrets.PROD_POSTGRES_USER }}
-            export POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}
-            export ENV=production
-            export DEBUG=false
-            export LOG_LEVEL=INFO
+            # ==================================================================
+            # 环境变量加载
+            # ==================================================================
+            # 检查并加载服务器上的 .prod.env 文件
+            if [ -f ".prod.env" ]; then
+              echo "ℹ️ 正在加载 .prod.env 文件..."
+              set -o allexport      # 启用自动导出环境变量
+              source .prod.env      # 加载环境变量文件
+              set +o allexport      # 关闭自动导出
+            else
+              echo "❌ 错误: .prod.env 文件在 $PROJECT_PATH 中不存在!"
+              exit 1
+            fi
             
-            # 登录镜像仓库
+            # ==================================================================
+            # 镜像标签配置
+            # ==================================================================
+            # 定义短标签名称
+            export SHORT_IMAGE_NAME="${{ env.IMAGE_NAME }}:${{ needs.determine-environment-and-tag.outputs.image_tag }}-prod"
+            # 动态设置/覆盖本次部署的镜像标签
+            export IMAGE_NAME_WITH_TAG="${{ secrets.ACR_REGISTRY }}/$SHORT_IMAGE_NAME"
+            
+            # ==================================================================
+            # 镜像仓库登录
+            # ==================================================================
             echo "🔐 登录镜像仓库..."
             echo "${{ secrets.ACR_PASSWORD }}" | docker login --username=${{ secrets.ACR_USERNAME }} --password-stdin ${{ secrets.ACR_REGISTRY }}
             
-            # 拉取新镜像
+            # ==================================================================
+            # 版本备份和镜像拉取
+            # ==================================================================
+            # 备份当前运行的镜像容器 ID，用于回滚
+            CURRENT_IMAGE=$(docker-compose -f docker-compose.prod.yml ps -q app 2>/dev/null || echo "")
+            
+            # 拉取新构建的镜像
             echo "📦 拉取新镜像..."
             docker-compose -f docker-compose.prod.yml pull app
             
-            # 备份数据库
+            # ==================================================================
+            # 数据库操作
+            # ==================================================================
+            # 备份生产数据库（生产环境必须成功）
             echo "💾 备份生产数据库..."
             docker-compose -f docker-compose.prod.yml exec -T db pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_prod_$(date +%Y%m%d_%H%M%S).sql
             
-            # 运行数据库迁移
+            # 运行数据库迁移（生产环境必须成功）
             echo "🔄 运行数据库迁移..."
             docker-compose -f docker-compose.prod.yml run --rm app alembic upgrade head
             
+            # ==================================================================
+            # 应用部署
+            # ==================================================================
             # 优雅停止现有服务
             echo "⏹️ 优雅停止现有服务..."
             docker-compose -f docker-compose.prod.yml stop app
             
-            # 部署新版本
+            # 启动新版本应用
             echo "🚀 部署新版本..."
             docker-compose -f docker-compose.prod.yml up -d
             
             # 等待服务启动
             echo "⏳ 等待服务启动..."
-            sleep 60
+            sleep 10
             
-            # 健康检查
+            # ==================================================================
+            # 健康检查和回滚机制
+            # ==================================================================
             echo "🏥 执行健康检查..."
+            HEALTH_CHECK_PASSED=false
             for i in {1..15}; do
               if curl -f http://localhost:$APP_PORT/health > /dev/null 2>&1; then
                 echo "✅ 生产环境部署成功！"
+                HEALTH_CHECK_PASSED=true
                 break
               fi
               echo "⏳ 等待服务启动... ($i/15)"
               sleep 15
             done
             
-            # 验证关键接口
+            # 如果健康检查失败，执行回滚
+            if [ "$HEALTH_CHECK_PASSED" = false ]; then
+              echo "❌ 健康检查失败，开始回滚..."
+              if [ -n "$CURRENT_IMAGE" ]; then
+                docker-compose -f docker-compose.prod.yml up -d --no-deps app
+                echo "🔄 已回滚到上一个版本"
+              fi
+              exit 1
+            fi
+            
+            # ==================================================================
+            # 部署后验证
+            # ==================================================================
+            # 验证关键接口是否正常响应
             echo "🔍 验证关键接口..."
             curl -f http://localhost:$APP_PORT/api/v1/auth/test > /dev/null 2>&1 || echo "⚠️ 警告: 某些接口可能未正常响应"
             
-            # 清理旧镜像
+            # ==================================================================
+            # 部署后清理
+            # ==================================================================
+            # 为镜像添加短标签，方便查看
+            echo "🏷️ 为镜像添加短标签: $SHORT_IMAGE_NAME..."
+            docker tag $IMAGE_NAME_WITH_TAG $SHORT_IMAGE_NAME
+            
+            # 清理未使用的镜像
             echo "🧹 清理旧镜像..."
             docker image prune -f
             
             echo "🎉 生产环境部署完成！"
             echo "📊 生产环境访问地址: http://${{ secrets.ECS_SERVER_IP }}:$APP_PORT"
 
-  # 部署后通知
+  # ==========================================================================
+  # 任务5: 部署后通知
+  # 生成部署报告并发送通知
+  # ==========================================================================
   notify:
-    needs: [determine-environment, deploy-test, deploy-production]
-    if: always() && needs.determine-environment.outputs.should_deploy == 'true'
+    needs: [determine-environment-and-tag, deploy-test, deploy-production]  # 依赖所有部署任务
+    if: always() && needs.determine-environment-and-tag.outputs.should_deploy == 'true'  # 总是执行，但只在需要部署时
     runs-on: ubuntu-latest
     steps:
-      - name: Notify deployment status
+      # 步骤1: 生成部署报告
+      - name: Generate deployment report
+        id: report
         run: |
-          if [[ "${{ needs.determine-environment.outputs.environment }}" == "test" ]]; then
+          # 获取部署信息
+          ENVIRONMENT="${{ needs.determine-environment-and-tag.outputs.environment }}"
+          VERSION="${{ needs.determine-environment-and-tag.outputs.image_tag }}"
+          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+          
+          # 根据环境判断部署状态
+          if [[ "$ENVIRONMENT" == "test" ]]; then
             if [[ "${{ needs.deploy-test.result }}" == "success" ]]; then
-              echo "✅ 测试环境部署成功！"
-              echo "🌐 访问地址: http://${{ secrets.TEST_ECS_SERVER_IP }}:${{ secrets.TEST_APP_PORT || '8080' }}"
+              STATUS="✅ 成功"
+              URL="http://${{ secrets.TEST_ECS_SERVER_IP }}:${{ secrets.TEST_APP_PORT || '8080' }}"
+              MESSAGE="测试环境部署成功！"
             else
-              echo "❌ 测试环境部署失败！"
-              echo "请检查部署日志进行故障排除"
+              STATUS="❌ 失败"
+              URL=""
+              MESSAGE="测试环境部署失败！请检查部署日志进行故障排除"
             fi
-          elif [[ "${{ needs.determine-environment.outputs.environment }}" == "production" ]]; then
+          elif [[ "$ENVIRONMENT" == "prod" ]]; then
             if [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
-              echo "✅ 生产环境部署成功！"
-              echo "🌐 访问地址: http://${{ secrets.ECS_SERVER_IP }}:${{ secrets.PROD_APP_PORT || '8888' }}"
+              STATUS="✅ 成功"
+              URL="http://${{ secrets.ECS_SERVER_IP }}:${{ secrets.PROD_APP_PORT || '8888' }}"
+              MESSAGE="生产环境部署成功！"
             else
-              echo "❌ 生产环境部署失败！"
-              echo "请立即检查生产环境状态并进行故障排除"
+              STATUS="❌ 失败"
+              URL=""
+              MESSAGE="生产环境部署失败！请立即检查生产环境状态并进行故障排除"
             fi
           fi
           
-          # 这里可以添加更多通知方式，比如：
+          # 生成 Markdown 格式的部署报告
+          cat << EOF >> deployment_report.md
+          # 部署报告
+          
+          **环境**: $ENVIRONMENT
+          **版本**: $VERSION
+          **状态**: $STATUS
+          **时间**: $TIMESTAMP
+          **消息**: $MESSAGE
+          
+          EOF
+          
+          # 如果有访问地址，添加到报告中
+          if [[ -n "$URL" ]]; then
+            echo "**访问地址**: $URL" >> deployment_report.md
+          fi
+          
+          # 设置步骤输出
+          echo "report_file=deployment_report.md" >> $GITHUB_OUTPUT
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "message=$MESSAGE" >> $GITHUB_OUTPUT
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      # 步骤2: 发送部署通知
+      - name: Notify deployment status
+        run: |
+          echo "=== 部署通知 ==="
+          echo "环境: ${{ needs.determine-environment-and-tag.outputs.environment }}"
+          echo "版本: ${{ needs.determine-environment-and-tag.outputs.image_tag }}"
+          echo "状态: ${{ steps.report.outputs.status }}"
+          echo "消息: ${{ steps.report.outputs.message }}"
+          if [[ -n "${{ steps.report.outputs.url }}" ]]; then
+            echo "访问地址: ${{ steps.report.outputs.url }}"
+          fi
+          echo "================"
+          
+          # 扩展通知功能（可根据需要启用）：
           # - 发送到钉钉群
           # - 发送到企业微信
-          # - 发送邮件
+          # - 发送邮件通知
           # - 发送到 Slack
+          # - 发送到 Discord
+          # - 发送到 Telegram
