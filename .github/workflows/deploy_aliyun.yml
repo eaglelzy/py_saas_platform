@@ -233,6 +233,11 @@ jobs:
             # ==================================================================
             export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"                 # 完整镜像名称
             export SHORT_IMAGE_NAME="${{ needs.build-and-push.outputs.image_tag }}"                    # 短镜像标签名称
+            
+            # 打印镜像信息用于调试
+            echo "🔍 镜像信息调试:"
+            echo "   IMAGE_NAME_WITH_TAG: $IMAGE_NAME_WITH_TAG"
+            echo "   SHORT_IMAGE_NAME: $SHORT_IMAGE_NAME"
             export DATABASE_URL="${{ secrets.TEST_DATABASE_URL }}"                                      # 数据库连接 URL
             export SECRET_KEY="${{ secrets.TEST_SECRET_KEY }}"                                          # 应用密钥
             export PROJECT_NAME="留学助手平台-测试环境"                                                   # 项目名称
@@ -249,19 +254,19 @@ jobs:
             
             # 拉取新镜像
             echo "📦 拉取新镜像: $IMAGE_NAME_WITH_TAG"
-            docker-compose -f docker-compose.prod.yml pull app
+            docker-compose -f docker-compose.test.yml pull app
             
             # 备份数据库
             echo "💾 备份数据库..."
-            docker-compose -f docker-compose.prod.yml exec -T db pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_test_$(date +%Y%m%d_%H%M%S).sql || true
+            docker-compose -f docker-compose.test.yml exec -T db pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup_test_$(date +%Y%m%d_%H%M%S).sql || true
             
             # 运行数据库迁移
             echo "🔄 运行数据库迁移..."
-            docker-compose -f docker-compose.prod.yml run --rm app alembic upgrade head || true
+            docker-compose -f docker-compose.test.yml run --rm app alembic upgrade head || true
             
             # 部署应用
             echo "🚀 部署应用..."
-            docker-compose -f docker-compose.prod.yml up -d
+            docker-compose -f docker-compose.test.yml up -d
             
             # 等待服务启动
             echo "⏳ 等待服务启动..."
@@ -344,6 +349,11 @@ jobs:
             # 使用构建任务输出的镜像信息
             export IMAGE_NAME_WITH_TAG="${{ needs.build-and-push.outputs.image_uri }}"                 # 完整镜像名称
             export SHORT_IMAGE_NAME="${{ needs.build-and-push.outputs.image_tag }}"                    # 短镜像标签名称
+            
+            # 打印镜像信息用于调试
+            echo "🔍 镜像信息调试:"
+            echo "   IMAGE_NAME_WITH_TAG: $IMAGE_NAME_WITH_TAG"
+            echo "   SHORT_IMAGE_NAME: $SHORT_IMAGE_NAME"
             
             # ==================================================================
             # 镜像仓库登录
