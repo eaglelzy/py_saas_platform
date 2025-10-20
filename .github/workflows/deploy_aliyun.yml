@@ -241,9 +241,15 @@ jobs:
             export POSTGRES_DB="${{ secrets.TEST_POSTGRES_DB }}"                                        # 数据库名称
             export POSTGRES_USER="${{ secrets.TEST_POSTGRES_USER }}"                                    # 数据库用户名
             export POSTGRES_PASSWORD="${{ secrets.TEST_POSTGRES_PASSWORD }}"                            # 数据库密码
+            export REDIS_PORT="${{ secrets.TEST_REDIS_PORT || '6382' }}"                               # Redis端口
             export ENV=test                                                                              # 环境标识
             export DEBUG=true                                                                            # 调试模式
             export LOG_LEVEL=DEBUG                                                                       # 日志级别
+            
+            # 打印端口信息用于调试
+            echo "🔍 端口信息调试:"
+            echo "   APP_PORT: $APP_PORT"
+            echo "   REDIS_PORT: $REDIS_PORT"
             
             # 登录镜像仓库
             echo "🔐 登录镜像仓库..."
@@ -345,6 +351,8 @@ jobs:
             # 打印镜像信息用于调试
             echo "🔍 镜像信息调试:"
             echo "   IMAGE_NAME_WITH_TAG: $IMAGE_NAME_WITH_TAG"
+            echo "   APP_PORT: $APP_PORT"
+            echo "   REDIS_PORT: ${REDIS_PORT:-6379}"
             
             # ==================================================================
             # 镜像仓库登录
