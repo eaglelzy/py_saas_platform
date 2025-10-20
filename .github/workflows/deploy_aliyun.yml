@@ -68,10 +68,13 @@ jobs:
             
           elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
             # 推送到 release/* 分支：部署到测试环境
+            echo "🔍 检测到 release 分支推送: ${{ github.ref }}"
+            echo "🔍 分支名称: ${{ github.ref_name }}"
             echo "environment=test" >> $GITHUB_OUTPUT
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             # 发布分支：将分支名转换为安全的标签格式, 如 release/1.0.0 转换为 release_1.0.0
             SAFE_TAG=$(echo "${{ github.ref_name }}" | sed 's/\//_/g')
+            echo "🔍 生成的标签: $SAFE_TAG"
             echo "tag=$SAFE_TAG" >> $GITHUB_OUTPUT
             
           elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
@@ -101,6 +104,12 @@ jobs:
             echo "should_deploy=false" >> $GITHUB_OUTPUT
             echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
           fi
+          
+          # 调试输出：显示最终的结果
+          echo "🎯 最终输出结果:"
+          echo "   environment: $(cat $GITHUB_OUTPUT | grep '^environment=' | cut -d'=' -f2)"
+          echo "   should_deploy: $(cat $GITHUB_OUTPUT | grep '^should_deploy=' | cut -d'=' -f2)"
+          echo "   tag: $(cat $GITHUB_OUTPUT | grep '^tag=' | cut -d'=' -f2)"
 
   # ==========================================================================
   # 任务2: 构建和推送 Docker 镜像
@@ -127,7 +136,15 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}     # 用户名
           password: ${{ secrets.ACR_PASSWORD }}     # 密码
 
-      # 步骤4: 提取镜像元数据
+      # 步骤4: 调试输出
+      - name: Debug build inputs
+        run: |
+          echo "🔍 调试信息 - 构建任务:"
+          echo "   image_tag: ${{ needs.determine-environment-and-tag.outputs.image_tag }}"
+          echo "   environment: ${{ needs.determine-environment-and-tag.outputs.environment }}"
+          echo "   should_deploy: ${{ needs.determine-environment-and-tag.outputs.should_deploy }}"
+
+      # 步骤5: 提取镜像元数据
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -137,7 +154,7 @@ jobs:
             # 生成镜像标签：{image_tag}-{environment}
             type=raw,value=${{ needs.determine-environment-and-tag.outputs.image_tag }}-${{ needs.determine-environment-and-tag.outputs.environment }}
 
-      # 步骤5: 构建并推送 Docker 镜像
+      # 步骤6: 构建并推送 Docker 镜像
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
