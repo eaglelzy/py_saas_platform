@@ -1,0 +1,67 @@
+# Cursor IDE 忽略文件
+# 忽略虚拟环境
+venv/
+.venv/
+env/
+.env/
+
+# 忽略 Python 缓存文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 忽略构建和分发文件
+build/
+dist/
+*.egg-info/
+
+# 忽略测试和覆盖率文件
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# 忽略 IDE 配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 忽略日志文件
+*.log
+logs/
+
+# 忽略数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 忽略临时文件
+.tmp/
+temp/
+tmp/
+
+# 忽略 Node.js 依赖
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 忽略其他常见的大目录
+logs/
+*.log
+
+# 忽略文档构建文件
+docs/_build/
+site/
+
+# 忽略环境变量文件
+.env
+.env.local
+.env.development
+.env.test
+.env.production

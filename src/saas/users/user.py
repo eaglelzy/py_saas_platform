@@ -14,7 +14,7 @@
 
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 # 从核心模块导入基础类和 Mixin
 from src.core.db import Base, TimestampMixin
@@ -123,6 +123,20 @@ class User(Base, TimestampMixin):
         comment="是否为超级用户（跨租户权限）"
     )
     
+    # 软删除字段
+    is_deleted = Column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="是否已删除（软删除标记）"
+    )
+    
+    deleted_at = Column(
+        DateTime,
+        nullable=True,
+        comment="删除时间"
+    )
+    
     # 登录信息字段
     last_login = Column(
         DateTime,
@@ -138,17 +152,19 @@ class User(Base, TimestampMixin):
         nullable=False,
         comment="所属租户ID"
     )
+    # 租户关系：用户属于某个租户
     tenant = relationship(
         "Tenant", 
         back_populates="users"
     )
     
     # 学生关系：用户负责管理多个学生
-    assigned_students = relationship(
-        "Student", 
-        back_populates="user",
-        lazy="dynamic"  # 使用动态加载，避免一次性加载所有学生
-    )
+    # 注意：Student 模型尚未创建，暂时注释掉此关系
+    # assigned_students = relationship(
+    #     "Student", 
+    #     back_populates="user",
+    #     lazy="dynamic"  # 使用动态加载，避免一次性加载所有学生
+    # )
     
     def __repr__(self):
         """
@@ -297,6 +313,45 @@ class User(Base, TimestampMixin):
             str: 状态的中文显示名称
         """
         return "激活" if self.is_active else "停用"
+    
+    def soft_delete(self):
+        """
+        软删除用户
+        
+        标记用户为已删除，但不从数据库中物理删除。
+        软删除的用户不会在正常查询中显示。
+        """
+        self.is_deleted = True
+        self.deleted_at = datetime.now(timezone.utc)
+    
+    def restore(self):
+        """
+        恢复已删除的用户
+        
+        将软删除的用户恢复到正常状态。
+        """
+        self.is_deleted = False
+        self.deleted_at = None
+    
+    def is_available(self):
+        """
+        检查用户是否可用（未删除且激活）
+        
+        Returns:
+            bool: 用户是否可用
+        """
+        return not self.is_deleted and self.is_active
+    
+    def get_deleted_display(self):
+        """
+        获取删除状态的中文显示名称
+        
+        Returns:
+            str: 删除状态的中文显示名称
+        """
+        if not self.is_deleted:
+            return "正常"
+        return f"已删除 ({self.deleted_at.strftime('%Y-%m-%d %H:%M:%S') if self.deleted_at else '未知时间'})"
     
     def to_dict(self):
         """

@@ -4,7 +4,7 @@ from src.core.config import settings
 # 从新的 saas/ 目录中导入平台模块的 API 路由器
 from src.saas.users import api as users_api
 from src.saas.auth import api as auth_api
-# from src.saas.tenants import api as tenants_api # 如果存在则取消注释
+from src.saas.tenants import router as tenants_router
 # from src.saas.subscriptions import api as subscriptions_api # 如果存在则取消注释
 
 # 未来应用层的模块将从这里导入
@@ -24,7 +24,7 @@ app = FastAPI(
 # 这是将模块功能“插入”主应用的关键步骤
 app.include_router(auth_api.router, prefix=settings.API_V1_STR, tags=["Auth"])
 app.include_router(users_api.router, prefix=settings.API_V1_STR, tags=["Users"])
-# app.include_router(tenants_api.router, prefix=f"{settings.API_V1_STR}/tenants", tags=["Tenants"])
+app.include_router(tenants_router, prefix=settings.API_V1_STR, tags=["Tenants"])
 # app.include_router(subscriptions_api.router, prefix=f"{settings.API_V1_STR}/subscriptions", tags=["Subscriptions"])
 
 

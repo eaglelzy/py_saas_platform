@@ -32,37 +32,38 @@ class Settings(BaseSettings):
     # [修改] 将类型从 List[AnyHttpUrl] 改为 List[str] 以允许 '*'
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
 
-    class Config:
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = {
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
         # [新增] 告诉 Pydantic 忽略 .env 文件中未在上面定义的额外变量
-        extra = 'ignore'
+        "extra": "ignore"
+    }
 
-        @classmethod
-        def customise_sources(
-            cls,
-            init_settings,
-            env_settings,
-            file_secret_settings,
-        ):
-            env = os.getenv("ENV", "local")
-            env_files = {
-                "local": ".env.local",
-                "test": ".env.test",
-                "prod": ".env.prod",
-            }
-            if env_file and os.path.exists(env_file):
-                return (
-                    init_settings,
-                    env_settings,
-                    file_secret_settings,
-                )
-            env_file = env_files.get(env)
+    @classmethod
+    def customise_sources(
+        cls,
+        init_settings,
+        env_settings,
+        file_secret_settings,
+    ):
+        env = os.getenv("ENV", "local")
+        env_files = {
+            "local": ".env.local",
+            "test": ".env.test",
+            "prod": ".env.prod",
+        }
+        env_file = env_files.get(env)
+        if env_file and os.path.exists(env_file):
             return (
                 init_settings,
                 env_settings,
                 file_secret_settings,
             )
+        return (
+            init_settings,
+            env_settings,
+            file_secret_settings,
+        )
 
 # 创建一个全局可用的 settings 实例
 settings = Settings()

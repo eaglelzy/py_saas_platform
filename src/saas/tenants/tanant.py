@@ -11,8 +11,9 @@
 - 通过 tenant_id 外键实现数据的逻辑隔离
 """
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Index
 from sqlalchemy.orm import relationship
+from datetime import datetime, timezone
 
 # 从核心模块导入基础类和 Mixin
 from src.core.db import Base, TimestampMixin
@@ -55,17 +56,56 @@ class Tenant(Base, TimestampMixin):
     """
     __tablename__ = "tenants"
     
-    # 主键字段
+    # 1. 主键字段（必须第一个）
     id = Column(Integer, primary_key=True, comment="租户唯一标识符")
     
-    # 租户基本信息
+    # 2. 业务标识字段（最常用的查询字段）
     name = Column(
         String(100), 
         nullable=False, 
         comment="租户名称（公司或组织名称）"
     )
+    
+    # 3. 状态字段（按查询频率排序）
+    is_active = Column(
+        Boolean, 
+        default=True,
+        nullable=False,
+        comment="租户是否激活"
+    )
+    
+    is_deleted = Column(
+        Boolean, 
+        default=False,
+        nullable=False,
+        comment="是否已删除（软删除）"
+    )
+    
+    # 4. 时间字段（TimestampMixin 会自动添加 created_at, updated_at）
+    # 其他时间字段
+    deleted_at = Column(
+        DateTime,
+        nullable=True,
+        comment="删除时间"
+    )
 
-    # 关系映射
+    # 5. 表级索引（性能优化）
+    __table_args__ = (
+        # 单列索引
+        Index('ix_tenants_name', 'name'),
+        Index('ix_tenants_is_active', 'is_active'),
+        Index('ix_tenants_is_deleted', 'is_deleted'),
+        Index('ix_tenants_created_at', 'created_at'),
+        
+        # 复合索引（常用查询组合）
+        Index('ix_tenants_active_not_deleted', 'is_active', 'is_deleted'),
+        Index('ix_tenants_name_active', 'name', 'is_active'),
+        
+        # 表注释
+        {'comment': '租户表 - 支持多租户数据隔离'}
+    )
+
+    # 6. 关系映射
     # 一个租户拥有多个用户（顾问）
     users = relationship(
         "User", 
@@ -96,25 +136,26 @@ class Tenant(Base, TimestampMixin):
     )
     
     # 一个租户拥有多个学生（客户）
-    students = relationship(
-        "Student", 
-        # back_populates: 建立双向关系映射
-        # - 在 Tenant 模型中，students 指向该租户的所有学生
-        # - 在 Student 模型中，tenant 指向该学生所属的租户
-        # - 双向关系确保数据一致性，避免关系断裂
-        back_populates="tenant", 
-        
-        # cascade: 级联操作设置
-        # 当租户被删除时，所有关联的学生记录也会被删除
-        # 这确保了数据完整性，避免出现"孤儿"学生记录
-        # 在实际业务中，可能需要考虑软删除或数据迁移策略
-        cascade="all, delete-orphan",
-        
-        # lazy: 延迟加载策略
-        # 使用动态加载避免在查询租户时立即加载所有学生数据
-        # 这对于有大量学生的租户来说非常重要
-        lazy="dynamic"
-    )
+    # 注意：Student 模型尚未创建，暂时注释掉此关系
+    # students = relationship(
+    #     "Student", 
+    #     # back_populates: 建立双向关系映射
+    #     # - 在 Tenant 模型中，students 指向该租户的所有学生
+    #     # - 在 Student 模型中，tenant 指向该学生所属的租户
+    #     # - 双向关系确保数据一致性，避免关系断裂
+    #     back_populates="tenant", 
+    #     
+    #     # cascade: 级联操作设置
+    #     # 当租户被删除时，所有关联的学生记录也会被删除
+    #     # 这确保了数据完整性，避免出现"孤儿"学生记录
+    #     # 在实际业务中，可能需要考虑软删除或数据迁移策略
+    #     cascade="all, delete-orphan",
+    #     
+    #     # lazy: 延迟加载策略
+    #     # 使用动态加载避免在查询租户时立即加载所有学生数据
+    #     # 这对于有大量学生的租户来说非常重要
+    #     lazy="dynamic"
+    # )
     
     def __repr__(self):
         """
@@ -133,3 +174,80 @@ class Tenant(Base, TimestampMixin):
             str: 租户名称
         """
         return self.name
+    
+    # =============================================================================
+    # 状态管理方法
+    # =============================================================================
+    
+    def activate(self):
+        """
+        激活租户
+        
+        将租户状态设置为激活，租户可以正常使用系统。
+        """
+        self.is_active = True
+    
+    def deactivate(self):
+        """
+        停用租户
+        
+        将租户状态设置为非激活，租户无法使用系统。
+        """
+        self.is_active = False
+    
+    def soft_delete(self):
+        """
+        软删除租户
+        
+        标记租户为已删除，但不从数据库中物理删除。
+        软删除的租户不会在正常查询中显示。
+        """
+        self.is_deleted = True
+        self.deleted_at = datetime.now(timezone.utc)
+    
+    def restore(self):
+        """
+        恢复软删除的租户
+        
+        取消软删除标记，租户重新可见。
+        """
+        self.is_deleted = False
+        self.deleted_at = None
+    
+    def is_available(self):
+        """
+        检查租户是否可用
+        
+        租户可用需要同时满足：
+        1. 已激活 (is_active = True)
+        2. 未删除 (is_deleted = False)
+        
+        Returns:
+            bool: 租户可用返回 True，否则返回 False
+        """
+        return self.is_active and not self.is_deleted
+    
+    def get_status_display(self):
+        """
+        获取租户状态的中文显示名称
+        
+        Returns:
+            str: 状态的中文显示名称
+        """
+        if self.is_deleted:
+            return "已删除"
+        elif not self.is_active:
+            return "已停用"
+        else:
+            return "正常"
+    
+    def get_deleted_display(self):
+        """
+        获取删除时间的中文显示格式
+        
+        Returns:
+            str: 格式化的删除时间字符串
+        """
+        if self.deleted_at:
+            return self.deleted_at.strftime("%Y-%m-%d %H:%M:%S")
+        return "未删除"

@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: c2b78b30deb2
+Revision ID: 682a9dd0ce8b
 Revises: 
-Create Date: 2025-10-21 00:36:19.666693
+Create Date: 2025-10-21 03:29:06.828569
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'c2b78b30deb2'
+revision: str = '682a9dd0ce8b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,10 +24,20 @@ def upgrade() -> None:
     op.create_table('tenants',
     sa.Column('id', sa.Integer(), nullable=False, comment='租户唯一标识符'),
     sa.Column('name', sa.String(length=100), nullable=False, comment='租户名称（公司或组织名称）'),
+    sa.Column('is_active', sa.Boolean(), nullable=False, comment='租户是否激活'),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False, comment='是否已删除（软删除）'),
+    sa.Column('deleted_at', sa.DateTime(), nullable=True, comment='删除时间'),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    comment='租户表 - 支持多租户数据隔离'
     )
+    op.create_index('ix_tenants_active_not_deleted', 'tenants', ['is_active', 'is_deleted'], unique=False)
+    op.create_index('ix_tenants_created_at', 'tenants', ['created_at'], unique=False)
+    op.create_index('ix_tenants_is_active', 'tenants', ['is_active'], unique=False)
+    op.create_index('ix_tenants_is_deleted', 'tenants', ['is_deleted'], unique=False)
+    op.create_index('ix_tenants_name', 'tenants', ['name'], unique=False)
+    op.create_index('ix_tenants_name_active', 'tenants', ['name', 'is_active'], unique=False)
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False, comment='用户唯一标识符'),
     sa.Column('name', sa.String(length=100), nullable=False, comment='用户姓名'),
@@ -53,5 +63,11 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')
+    op.drop_index('ix_tenants_name_active', table_name='tenants')
+    op.drop_index('ix_tenants_name', table_name='tenants')
+    op.drop_index('ix_tenants_is_deleted', table_name='tenants')
+    op.drop_index('ix_tenants_is_active', table_name='tenants')
+    op.drop_index('ix_tenants_created_at', table_name='tenants')
+    op.drop_index('ix_tenants_active_not_deleted', table_name='tenants')
     op.drop_table('tenants')
     # ### end Alembic commands ###
