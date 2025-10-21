@@ -11,7 +11,7 @@ pydantic
 pydantic-settings
 
 # --- Security & Authentication ---
-passlib[bcrypt] # for password hashing
+passlib # for password hashing (using pbkdf2_sha256, no bcrypt needed)
 python-jose[cryptography]
 
 # --- Logging ---

@@ -7,9 +7,16 @@
 from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
+from sqlalchemy.exc import IntegrityError
 
 from src.saas.tenants.tanant import Tenant
 from src.saas.tenants.schemas import TenantCreate, TenantUpdate
+from src.core.exceptions import (
+    BusinessLogicException,
+    ResourceNotFoundException,
+    DuplicateResourceException,
+    DatabaseException
+)
 
 
 def create_tenant(db: Session, tenant: TenantCreate) -> Tenant:
@@ -24,18 +31,34 @@ def create_tenant(db: Session, tenant: TenantCreate) -> Tenant:
         Tenant: 创建的租户对象
         
     Raises:
-        ValueError: 如果租户名称已存在
+        DuplicateResourceException: 如果租户名称已存在
+        DatabaseException: 数据库操作失败
     """
-    # 检查租户名称是否已存在
-    existing_tenant = get_tenant_by_name(db, tenant.name)
-    if existing_tenant:
-        raise ValueError(f"租户名称 '{tenant.name}' 已存在")
-    
-    db_tenant = Tenant(name=tenant.name)
-    db.add(db_tenant)
-    db.commit()
-    db.refresh(db_tenant)
-    return db_tenant
+    try:
+        # 检查租户名称是否已存在
+        existing_tenant = get_tenant_by_name(db, tenant.name)
+        if existing_tenant:
+            raise DuplicateResourceException(
+                resource_type="租户",
+                field="名称",
+                value=tenant.name
+            )
+        
+        db_tenant = Tenant(name=tenant.name)
+        db.add(db_tenant)
+        db.commit()
+        db.refresh(db_tenant)
+        return db_tenant
+        
+    except DuplicateResourceException:
+        # 重新抛出重复资源异常
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        raise DatabaseException(f"数据库完整性错误: {str(e)}")
+    except Exception as e:
+        db.rollback()
+        raise DatabaseException(f"创建租户时发生错误: {str(e)}")
 
 
 def get_tenant(db: Session, tenant_id: int, include_deleted: bool = False) -> Optional[Tenant]:
@@ -181,28 +204,41 @@ def update_tenant(
         Optional[Tenant]: 更新后的租户对象，不存在则返回 None
         
     Raises:
-        ValueError: 如果新名称已存在
+        DuplicateResourceException: 如果新名称已存在
+        DatabaseException: 数据库操作失败
     """
-    db_tenant = get_tenant(db, tenant_id)
-    if not db_tenant:
-        return None
-    
-    # 只更新提供的字段
-    update_data = tenant_update.model_dump(exclude_unset=True)
-    
-    # 如果更新名称，检查是否已存在
-    if "name" in update_data:
-        new_name = update_data["name"]
-        existing_tenant = get_tenant_by_name(db, new_name)
-        if existing_tenant and existing_tenant.id != tenant_id:
-            raise ValueError(f"租户名称 '{new_name}' 已存在")
-    
-    for field, value in update_data.items():
-        setattr(db_tenant, field, value)
-    
-    db.commit()
-    db.refresh(db_tenant)
-    return db_tenant
+    try:
+        db_tenant = get_tenant(db, tenant_id)
+        if not db_tenant:
+            return None
+        
+        # 只更新提供的字段
+        update_data = tenant_update.model_dump(exclude_unset=True)
+        
+        # 如果更新名称，检查是否已存在
+        if "name" in update_data:
+            new_name = update_data["name"]
+            existing_tenant = get_tenant_by_name(db, new_name)
+            if existing_tenant and existing_tenant.id != tenant_id:
+                raise DuplicateResourceException(
+                    resource_type="租户",
+                    field="名称",
+                    value=new_name
+                )
+        
+        for field, value in update_data.items():
+            setattr(db_tenant, field, value)
+        
+        db.commit()
+        db.refresh(db_tenant)
+        return db_tenant
+        
+    except DuplicateResourceException:
+        # 重新抛出重复资源异常
+        raise
+    except Exception as e:
+        db.rollback()
+        raise DatabaseException(f"更新租户时发生错误: {str(e)}")
 
 
 def delete_tenant(db: Session, tenant_id: int) -> bool:

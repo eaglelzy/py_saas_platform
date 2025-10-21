@@ -14,6 +14,12 @@ from sqlalchemy.orm import Session
 
 from src.core.db import get_db
 from src.saas.tenants import crud, schemas
+from src.core.exceptions import (
+    BusinessLogicException,
+    ResourceNotFoundException,
+    DuplicateResourceException,
+    ValidationException
+)
 from src.saas.tenants.schemas import (
     TenantCreate,
     TenantUpdate,
@@ -28,7 +34,7 @@ from src.saas.tenants.schemas import (
 )
 
 # 创建路由器
-router = APIRouter(prefix="/tenants", tags=["tenants"])
+router = APIRouter(tags=["tenants"])
 
 @router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
 def create_tenant(
@@ -51,11 +57,10 @@ def create_tenant(
     """
     try:
         return crud.create_tenant(db, tenant)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+    except DuplicateResourceException as e:
+        raise e
+    except Exception as e:
+        raise BusinessLogicException(f"创建租户失败: {str(e)}")
 
 
 @router.get("/{tenant_id}", response_model=TenantResponse)
@@ -80,10 +85,7 @@ def get_tenant(
     """
     tenant = crud.get_tenant(db, tenant_id, include_deleted=include_deleted)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"租户 ID {tenant_id} 不存在"
-        )
+        raise ResourceNotFoundException(resource_type="租户", resource_id=tenant_id)
     return tenant
 
 
@@ -177,16 +179,12 @@ def update_tenant(
     try:
         updated_tenant = crud.update_tenant(db, tenant_id, tenant_update)
         if not updated_tenant:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"租户 ID {tenant_id} 不存在"
-            )
+            raise ResourceNotFoundException(resource_type="租户", resource_id=tenant_id)
         return updated_tenant
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+    except DuplicateResourceException as e:
+        raise e
+    except Exception as e:
+        raise BusinessLogicException(f"更新租户失败: {str(e)}")
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -206,10 +204,7 @@ def delete_tenant(
     """
     success = crud.delete_tenant(db, tenant_id)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"租户 ID {tenant_id} 不存在"
-        )
+        raise ResourceNotFoundException(resource_type="租户", resource_id=tenant_id)
 
 
 @router.patch("/{tenant_id}/soft-delete", response_model=TenantResponse)
@@ -232,10 +227,7 @@ def soft_delete_tenant(
     """
     tenant = crud.soft_delete_tenant(db, tenant_id)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"租户 ID {tenant_id} 不存在"
-        )
+        raise ResourceNotFoundException(resource_type="租户", resource_id=tenant_id)
     return tenant
 
 
@@ -259,10 +251,7 @@ def restore_tenant(
     """
     tenant = crud.restore_tenant(db, tenant_id)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"租户 ID {tenant_id} 不存在或未被删除"
-        )
+        raise ResourceNotFoundException(resource_type="租户", resource_id=tenant_id)
     return tenant
 
 
@@ -286,10 +275,7 @@ def activate_tenant(
     """
     tenant = crud.activate_tenant(db, tenant_id)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"租户 ID {tenant_id} 不存在"
-        )
+        raise ResourceNotFoundException(resource_type="租户", resource_id=tenant_id)
     return tenant
 
 
@@ -313,10 +299,7 @@ def deactivate_tenant(
     """
     tenant = crud.deactivate_tenant(db, tenant_id)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"租户 ID {tenant_id} 不存在"
-        )
+        raise ResourceNotFoundException(resource_type="租户", resource_id=tenant_id)
     return tenant
 
 
@@ -341,10 +324,7 @@ def get_tenant_stats(
     # 先检查租户是否存在
     tenant = crud.get_tenant(db, tenant_id)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"租户 ID {tenant_id} 不存在"
-        )
+        raise ResourceNotFoundException(resource_type="租户", resource_id=tenant_id)
     
     return crud.get_tenant_stats(db, tenant_id)
 
@@ -394,10 +374,7 @@ def get_tenant_by_name(
     """
     tenant = crud.get_tenant_by_name(db, name)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"租户名称 '{name}' 不存在"
-        )
+        raise ResourceNotFoundException(resource_type="租户", resource_field="名称", resource_value=name)
     return tenant
 
 
@@ -422,10 +399,7 @@ def get_tenant_user_count(
     # 先检查租户是否存在
     tenant = crud.get_tenant(db, tenant_id)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"租户 ID {tenant_id} 不存在"
-        )
+        raise ResourceNotFoundException(resource_type="租户", resource_id=tenant_id)
     
     count = crud.get_tenant_user_count(db, tenant_id)
     return {"tenant_id": tenant_id, "user_count": count}

@@ -166,4 +166,5 @@ class TenantBulkResponse(BaseModel):
     """批量操作响应模型"""
     success_count: int = Field(..., description="成功数量")
     failed_count: int = Field(..., description="失败数量")
-    results: list[dict] = Field(..., description="操作结果详情")
+    success_tenants: list[TenantResponse] = Field(..., description="成功创建的租户")
+    failed_results: list[dict] = Field(..., description="失败的结果详情")

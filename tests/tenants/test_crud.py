@@ -6,6 +6,8 @@
 
 import pytest
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from unittest.mock import patch, MagicMock
 
 from src.saas.tenants.crud import (
     create_tenant,
@@ -27,6 +29,12 @@ from src.saas.tenants.crud import (
 )
 from src.saas.tenants.schemas import TenantCreate, TenantUpdate
 from src.saas.tenants.tanant import Tenant
+from src.core.exceptions import (
+    BusinessLogicException,
+    ResourceNotFoundException,
+    DuplicateResourceException,
+    DatabaseException
+)
 from pydantic import ValidationError
 
 
@@ -54,14 +62,47 @@ class TestCreateTenant:
         
         # 尝试创建同名租户
         duplicate_data = TenantCreate(name="重复名称租户")
-        with pytest.raises(ValueError, match="租户名称 '重复名称租户' 已存在"):
+        with pytest.raises(DuplicateResourceException) as exc_info:
             create_tenant(db, duplicate_data)
+        assert "租户 名称 '重复名称租户' 已存在" in str(exc_info.value)
     
     def test_create_tenant_empty_name(self, db: Session):
         """测试创建空名称的租户"""
-        with pytest.raises(ValueError, match="String should have at least 1 character"):
+        with pytest.raises(ValidationError, match="String should have at least 1 character"):
             tenant_data = TenantCreate(name="")
             create_tenant(db, tenant_data)
+
+    @patch('src.saas.tenants.crud.get_tenant_by_name')
+    def test_create_tenant_database_exception(self, mock_get_tenant_by_name, db: Session):
+        """测试创建租户时数据库异常"""
+        # 模拟数据库异常
+        mock_get_tenant_by_name.side_effect = DatabaseException("数据库连接失败")
+        
+        tenant_data = TenantCreate(name="测试租户")
+        with pytest.raises(DatabaseException, match="数据库连接失败"):
+            create_tenant(db, tenant_data)
+
+    @patch('src.saas.tenants.crud.get_tenant_by_name')
+    def test_create_tenant_integrity_error(self, mock_get_tenant_by_name, db: Session):
+        """测试创建租户时完整性错误"""
+        # 模拟没有重复名称
+        mock_get_tenant_by_name.return_value = None
+        # 模拟完整性错误
+        with patch.object(db, 'commit', side_effect=IntegrityError("statement", "params", "orig")):
+            tenant_data = TenantCreate(name="测试租户")
+            with pytest.raises(DatabaseException, match="数据库完整性错误"):
+                create_tenant(db, tenant_data)
+
+    @patch('src.saas.tenants.crud.get_tenant_by_name')
+    def test_create_tenant_general_exception(self, mock_get_tenant_by_name, db: Session):
+        """测试创建租户时一般异常"""
+        # 模拟没有重复名称
+        mock_get_tenant_by_name.return_value = None
+        # 模拟一般异常
+        with patch.object(db, 'commit', side_effect=Exception("未知错误")):
+            tenant_data = TenantCreate(name="测试租户")
+            with pytest.raises(DatabaseException, match="创建租户时发生错误: 未知错误"):
+                create_tenant(db, tenant_data)
     
 
 
@@ -209,8 +250,9 @@ class TestUpdateTenant:
         tenant1, tenant2 = test_tenants[0], test_tenants[1]
         update_data = TenantUpdate(name=tenant2.name)
         
-        with pytest.raises(ValueError, match="租户名称"):
+        with pytest.raises(DuplicateResourceException) as exc_info:
             update_tenant(db, tenant1.id, update_data)
+        assert "租户 名称" in str(exc_info.value)
     
     def test_update_tenant_partial_update(self, db: Session, test_tenant: Tenant):
         """测试部分更新"""
@@ -221,6 +263,29 @@ class TestUpdateTenant:
         
         assert updated_tenant is not None
         assert updated_tenant.name == original_name  # 名称未改变
+
+    @patch('src.saas.tenants.crud.get_tenant')
+    def test_update_tenant_database_exception(self, mock_get_tenant, db: Session):
+        """测试更新租户时数据库异常"""
+        # 模拟数据库异常
+        mock_get_tenant.side_effect = DatabaseException("数据库连接失败")
+        
+        update_data = TenantUpdate(name="更新租户")
+        with pytest.raises(DatabaseException, match="数据库连接失败"):
+            update_tenant(db, 1, update_data)
+
+    @patch('src.saas.tenants.crud.get_tenant')
+    def test_update_tenant_general_exception(self, mock_get_tenant, db: Session):
+        """测试更新租户时一般异常"""
+        # 模拟租户存在
+        mock_tenant = MagicMock()
+        mock_tenant.id = 1
+        mock_get_tenant.return_value = mock_tenant
+        # 模拟一般异常
+        with patch.object(db, 'commit', side_effect=Exception("未知错误")):
+            update_data = TenantUpdate(name="更新租户")
+            with pytest.raises(DatabaseException, match="更新租户时发生错误: 未知错误"):
+                update_tenant(db, 1, update_data)
 
 
 class TestDeleteTenant:
@@ -440,7 +505,6 @@ class TestTenantValidation:
         invalid_names = [
             "",                    # 空字符串
             "   ",                 # 只有空格
-            "ABC123",              # 包含数字
             "ABC-教育",            # 包含连字符
             "ABC.教育",            # 包含点号
             "ABC 教育",            # 包含空格
@@ -478,7 +542,6 @@ class TestTenantValidation:
         invalid_names = [
             "",                    # 空字符串
             "   ",                 # 只有空格
-            "ABC123",              # 包含数字
             "ABC-教育",            # 包含连字符
             "ABC.教育",            # 包含点号
             "ABC 教育",            # 包含空格
@@ -510,8 +573,8 @@ class TestTenantValidation:
         
         # 测试包含非法字符错误信息
         with pytest.raises(ValidationError) as exc_info:
-            TenantCreate(name="ABC123")
-        assert "租户名称只能包含中文字符、英文字母和下划线" in str(exc_info.value)
+            TenantCreate(name="ABC-教育")
+        assert "租户名称只能包含中文字符、英文字母、数字和下划线" in str(exc_info.value)
         
         # 测试只有空格错误信息
         with pytest.raises(ValidationError) as exc_info:
@@ -522,8 +585,8 @@ class TestTenantValidation:
         """测试租户更新校验错误信息"""
         # 测试包含非法字符错误信息
         with pytest.raises(ValidationError) as exc_info:
-            TenantUpdate(name="ABC123")
-        assert "租户名称只能包含中文字符、英文字母和下划线" in str(exc_info.value)
+            TenantUpdate(name="ABC-教育")
+        assert "租户名称只能包含中文字符、英文字母、数字和下划线" in str(exc_info.value)
         
         # 测试只有空格错误信息
         with pytest.raises(ValidationError) as exc_info:
