@@ -34,7 +34,7 @@ from src.saas.tenants.schemas import (
 )
 
 # 创建路由器
-router = APIRouter(prefix="/tenants", tags=["tenants"])
+router = APIRouter(prefix="/tenants")
 
 @router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
 def create_tenant(

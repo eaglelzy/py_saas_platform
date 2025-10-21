@@ -9,9 +9,9 @@ psycopg2-binary # for PostgreSQL
 # --- Data Validation & Settings ---
 pydantic
 pydantic-settings
+pydantic[email]
 
 # --- Security & Authentication ---
-passlib # for password hashing (using pbkdf2_sha256, no bcrypt needed)
 python-jose[cryptography]
 
 # --- Logging ---

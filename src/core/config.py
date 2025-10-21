@@ -35,8 +35,7 @@ class Settings(BaseSettings):
     model_config = {
         "env_file_encoding": "utf-8",
         "case_sensitive": False,
-        # [新增] 告诉 Pydantic 忽略 .env 文件中未在上面定义的额外变量
-        "extra": "ignore"
+        "extra": "ignore",
     }
 
     @classmethod

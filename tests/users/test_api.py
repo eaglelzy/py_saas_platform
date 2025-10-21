@@ -11,7 +11,7 @@ from src.saas.users.schemas import UserCreate, UserUpdate, UserBulkCreate
 from src.saas.users.user import User
 from src.saas.tenants.tanant import Tenant
 from src.saas.users.crud import create_user, soft_delete_user, activate_user, deactivate_user, restore_user
-from src.core.exceptions import ResourceNotFoundException, DuplicateResourceException, BusinessLogicException, ValidationException
+# 不再需要导入异常类，因为现在期望HTTP响应而不是异常抛出
 
 
 class TestCreateUser:
@@ -68,8 +68,9 @@ class TestCreateUser:
         }
         response = client.post("/api/v1/users", json=user_data2)
         
+        # 期望返回409冲突错误
         assert response.status_code == 409
-        assert "邮箱" in response.json()["detail"]["message"]
+        assert response.json()["msg"] == "用户 邮箱 'test@example.com' 已存在"
 
     def test_create_user_validation_errors(self, client: TestClient, db: Session):
         """测试创建用户时的数据验证错误"""
@@ -119,7 +120,7 @@ class TestCreateUser:
             "John Doe",
             "张三 李四",
             "User123",
-            "测试用户_2024"
+            "测试用户 2024"
         ]
         
         for i, name in enumerate(valid_names):
@@ -163,8 +164,10 @@ class TestGetUser:
     def test_get_user_not_found(self, client: TestClient, db: Session):
         """测试获取不存在的用户"""
         response = client.get("/api/v1/users/999")
+        
+        # 期望返回404未找到错误
         assert response.status_code == 404
-        assert "用户" in response.json()["detail"]["message"]
+        assert response.json()["msg"] == "用户 (ID: 999) 不存在"
 
     def test_get_user_include_deleted(self, client: TestClient, db: Session):
         """测试获取包含已删除的用户"""
@@ -186,9 +189,10 @@ class TestGetUser:
         # 软删除用户
         client.patch(f"/api/v1/users/{user_id}/soft-delete")
 
-        # 不包含已删除用户
+        # 不包含已删除用户 - 期望返回404未找到错误
         response = client.get(f"/api/v1/users/{user_id}")
         assert response.status_code == 404
+        assert response.json()["msg"] == "用户 (ID: 1) 不存在"
 
         # 包含已删除用户
         response = client.get(f"/api/v1/users/{user_id}?include_deleted=true")
@@ -353,7 +357,10 @@ class TestUpdateUser:
         """测试更新不存在的用户"""
         update_data = {"name": "更新用户"}
         response = client.put("/api/v1/users/999", json=update_data)
+        
+        # 期望返回404未找到错误
         assert response.status_code == 404
+        assert response.json()["msg"] == "用户 (ID: 999) 不存在"
 
     def test_update_user_duplicate_email(self, client: TestClient, db: Session):
         """测试更新为重复邮箱"""
@@ -381,10 +388,12 @@ class TestUpdateUser:
         
         user_id1 = create_response1.json()["id"]
 
-        # 尝试将用户1的邮箱更新为用户2的邮箱
+        # 尝试将用户1的邮箱更新为用户2的邮箱 - 期望返回409冲突错误
         update_data = {"email": "user2@example.com"}
         response = client.put(f"/api/v1/users/{user_id1}", json=update_data)
+        
         assert response.status_code == 409
+        assert response.json()["msg"] == "用户 邮箱 'user2@example.com' 已存在"
 
 
 class TestDeleteUser:
@@ -411,14 +420,18 @@ class TestDeleteUser:
         response = client.delete(f"/api/v1/users/{user_id}")
         assert response.status_code == 204
 
-        # 验证用户已被删除
+        # 验证用户已被删除 - 期望返回404未找到错误
         response = client.get(f"/api/v1/users/{user_id}")
         assert response.status_code == 404
+        assert response.json()["msg"] == "用户 (ID: 1) 不存在"
 
     def test_delete_user_not_found(self, client: TestClient, db: Session):
         """测试删除不存在的用户"""
         response = client.delete("/api/v1/users/999")
+        
+        # 期望返回404未找到错误
         assert response.status_code == 404
+        assert response.json()["msg"] == "用户 (ID: 999) 不存在"
 
 
 class TestUserStatusManagement:
@@ -445,9 +458,10 @@ class TestUserStatusManagement:
         response = client.patch(f"/api/v1/users/{user_id}/soft-delete")
         assert response.status_code == 204
 
-        # 验证用户已被软删除
+        # 验证用户已被软删除 - 期望返回404未找到错误
         response = client.get(f"/api/v1/users/{user_id}")
         assert response.status_code == 404
+        assert response.json()["msg"] == "用户 (ID: 1) 不存在"
 
     def test_restore_user_success(self, client: TestClient, db: Session):
         """测试成功恢复用户"""
@@ -559,7 +573,10 @@ class TestUserStats:
     def test_get_user_stats_not_found(self, client: TestClient, db: Session):
         """测试获取不存在用户的统计"""
         response = client.get("/api/v1/users/999/stats")
+        
+        # 期望返回404未找到错误
         assert response.status_code == 404
+        assert response.json()["msg"] == "用户 (ID: 999) 不存在"
 
 
 class TestBulkOperations:

@@ -34,16 +34,16 @@ def create_tenant(db: Session, tenant: TenantCreate) -> Tenant:
         DuplicateResourceException: 如果租户名称已存在
         DatabaseException: 数据库操作失败
     """
+    # 检查租户名称是否已存在
+    existing_tenant = get_tenant_by_name(db, tenant.name)
+    if existing_tenant:
+        raise DuplicateResourceException(
+            resource_type="租户",
+            field="名称",
+            value=tenant.name
+        )
+    
     try:
-        # 检查租户名称是否已存在
-        existing_tenant = get_tenant_by_name(db, tenant.name)
-        if existing_tenant:
-            raise DuplicateResourceException(
-                resource_type="租户",
-                field="名称",
-                value=tenant.name
-            )
-        
         db_tenant = Tenant(name=tenant.name)
         db.add(db_tenant)
         db.commit()

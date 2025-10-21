@@ -6,7 +6,9 @@
 
 import pytest
 from sqlalchemy.orm import Session
+from pydantic import ValidationError
 
+from src.core.exceptions import DuplicateResourceException
 from src.saas.tenants.crud import (
     create_tenant,
     get_tenant,
@@ -54,7 +56,7 @@ class TestCreateTenant:
         
         # 尝试创建同名租户
         duplicate_data = TenantCreate(name="重复名称租户")
-        with pytest.raises(ValueError, match="租户名称 '重复名称租户' 已存在"):
+        with pytest.raises(DuplicateResourceException):
             create_tenant(db, duplicate_data)
     
     def test_create_tenant_empty_name(self, db: Session):
@@ -209,7 +211,7 @@ class TestUpdateTenant:
         tenant1, tenant2 = test_tenants[0], test_tenants[1]
         update_data = TenantUpdate(name=tenant2.name)
         
-        with pytest.raises(ValueError, match="租户名称"):
+        with pytest.raises(DuplicateResourceException):
             update_tenant(db, tenant1.id, update_data)
     
     def test_update_tenant_partial_update(self, db: Session, test_tenant: Tenant):
@@ -440,7 +442,6 @@ class TestTenantValidation:
         invalid_names = [
             "",                    # 空字符串
             "   ",                 # 只有空格
-            "ABC123",              # 包含数字
             "ABC-教育",            # 包含连字符
             "ABC.教育",            # 包含点号
             "ABC 教育",            # 包含空格
@@ -478,7 +479,6 @@ class TestTenantValidation:
         invalid_names = [
             "",                    # 空字符串
             "   ",                 # 只有空格
-            "ABC123",              # 包含数字
             "ABC-教育",            # 包含连字符
             "ABC.教育",            # 包含点号
             "ABC 教育",            # 包含空格
@@ -510,8 +510,8 @@ class TestTenantValidation:
         
         # 测试包含非法字符错误信息
         with pytest.raises(ValidationError) as exc_info:
-            TenantCreate(name="ABC123")
-        assert "租户名称只能包含中文字符、英文字母和下划线" in str(exc_info.value)
+            TenantCreate(name="ABC-教育")
+        assert "租户名称只能包含中文字符、英文字母、数字和下划线" in str(exc_info.value)
         
         # 测试只有空格错误信息
         with pytest.raises(ValidationError) as exc_info:
@@ -522,8 +522,8 @@ class TestTenantValidation:
         """测试租户更新校验错误信息"""
         # 测试包含非法字符错误信息
         with pytest.raises(ValidationError) as exc_info:
-            TenantUpdate(name="ABC123")
-        assert "租户名称只能包含中文字符、英文字母和下划线" in str(exc_info.value)
+            TenantUpdate(name="ABC-教育")
+        assert "租户名称只能包含中文字符、英文字母、数字和下划线" in str(exc_info.value)
         
         # 测试只有空格错误信息
         with pytest.raises(ValidationError) as exc_info:
