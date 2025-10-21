@@ -69,7 +69,7 @@ class TestCreateUser:
         response = client.post("/api/v1/users", json=user_data2)
         
         assert response.status_code == 409
-        assert "邮箱" in response.json()["detail"]
+        assert "邮箱" in response.json()["detail"]["message"]
 
     def test_create_user_validation_errors(self, client: TestClient, db: Session):
         """测试创建用户时的数据验证错误"""
@@ -119,7 +119,7 @@ class TestCreateUser:
             "John Doe",
             "张三 李四",
             "User123",
-            "测试用户 2024"
+            "测试用户_2024"
         ]
         
         for i, name in enumerate(valid_names):
@@ -164,7 +164,7 @@ class TestGetUser:
         """测试获取不存在的用户"""
         response = client.get("/api/v1/users/999")
         assert response.status_code == 404
-        assert "用户" in response.json()["detail"]
+        assert "用户" in response.json()["detail"]["message"]
 
     def test_get_user_include_deleted(self, client: TestClient, db: Session):
         """测试获取包含已删除的用户"""

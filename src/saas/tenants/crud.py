@@ -50,9 +50,6 @@ def create_tenant(db: Session, tenant: TenantCreate) -> Tenant:
         db.refresh(db_tenant)
         return db_tenant
         
-    except DuplicateResourceException:
-        # 重新抛出重复资源异常
-        raise
     except IntegrityError as e:
         db.rollback()
         raise DatabaseException(f"数据库完整性错误: {str(e)}")
@@ -234,7 +231,6 @@ def update_tenant(
         return db_tenant
         
     except DuplicateResourceException:
-        # 重新抛出重复资源异常
         raise
     except Exception as e:
         db.rollback()

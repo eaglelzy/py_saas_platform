@@ -6,20 +6,15 @@
 
 import os
 import pytest
-import tempfile
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
-
-# 创建测试数据库目录
-TEST_DB_DIR = os.path.join(os.path.dirname(__file__), "test_databases")
-os.makedirs(TEST_DB_DIR, exist_ok=True)
 
 # 设置测试环境变量
 os.environ.setdefault("ENV", "unit-test")
 os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("LOG_LEVEL", "DEBUG")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{os.path.join(TEST_DB_DIR, 'test.db')}")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only")
 
 from src.core.db import Base, get_db

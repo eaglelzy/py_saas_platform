@@ -24,7 +24,7 @@ from src.core.exceptions import (
     ValidationException
 )
 
-router = APIRouter(tags=["users"])
+router = APIRouter()
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -146,7 +146,7 @@ def update_user(user_id: int, user_update: UserUpdate, db: Session = Depends(get
         if not updated_user:
             raise ResourceNotFoundException(resource_type="用户", resource_id=user_id)
         return updated_user
-    except (DuplicateResourceException, ResourceNotFoundException) as e:
+    except DuplicateResourceException as e:
         raise e
     except Exception as e:
         raise BusinessLogicException(f"更新用户失败: {str(e)}")

@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from sqlalchemy.exc import IntegrityError
+from passlib.context import CryptContext
 from datetime import datetime, timezone
 
 from .user import User
@@ -18,7 +19,19 @@ from src.core.exceptions import (
     DuplicateResourceException,
     DatabaseException
 )
-from src.core.security import hash_password, verify_password
+
+# 密码加密上下文
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """验证密码"""
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    """生成密码哈希"""
+    return pwd_context.hash(password)
 
 
 def create_user(db: Session, user: UserCreate) -> User:
@@ -36,21 +49,21 @@ def create_user(db: Session, user: UserCreate) -> User:
         DuplicateResourceException: 邮箱已存在
         DatabaseException: 数据库操作失败
     """
-    # 检查邮箱是否已存在
-    existing_user = get_user_by_email(db, user.email)
-    if existing_user:
-        raise DuplicateResourceException(
-            resource_type="用户",
-            field="邮箱",
-            value=user.email
-        )
-    
     try:
+        # 检查邮箱是否已存在
+        existing_user = get_user_by_email(db, user.email)
+        if existing_user:
+            raise DuplicateResourceException(
+                resource_type="用户",
+                field="邮箱",
+                value=user.email
+            )
+        
         # 创建用户对象
         db_user = User(
             name=user.name,
             email=user.email,
-            password=hash_password(user.password),
+            password=get_password_hash(user.password),
             is_active=user.is_active,
             is_superuser=user.is_superuser,
             tenant_id=user.tenant_id
@@ -262,7 +275,7 @@ def update_user(db: Session, user_id: int, user_update: UserUpdate) -> Optional[
         if user_update.is_superuser is not None:
             user.is_superuser = user_update.is_superuser
         if user_update.password is not None:
-            user.password = hash_password(user_update.password)
+            user.password = get_password_hash(user_update.password)
         
         db.commit()
         db.refresh(user)
@@ -448,7 +461,7 @@ def get_user_stats(db: Session, user_id: int) -> dict:
         "name": user.name,
         "email": user.email,
         "tenant_name": user.tenant.name if user.tenant else "未知租户",
-        "total_students": 0,  # 暂时返回 0
+        "student_count": 0,  # 暂时返回 0
         "last_login": user.last_login,
         "created_at": user.created_at,
         "updated_at": user.updated_at
