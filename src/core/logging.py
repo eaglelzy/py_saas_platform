@@ -243,10 +243,10 @@ def get_logging_config(use_colors: bool = True, log_level: str = "INFO", log_to_
 
 
 def setup_logging(
-    log_level: str = "INFO",
-    use_colors: bool = True,
-    log_to_file: bool = True,
-    environment: str = "development"
+    log_level: str = None,
+    use_colors: bool = None,
+    log_to_file: bool = None,
+    environment: str = None
 ):
     """
     设置应用程序日志配置
@@ -254,7 +254,7 @@ def setup_logging(
     优先使用环境变量，如果没有设置则使用默认值：
     - DEBUG: 控制是否启用调试模式（影响日志级别和彩色输出）
     - LOG_LEVEL: 设置日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    - ENV: 设置环境类型 (development, test, production)
+    - ENV: 设置环境类型 (local, test, prod)
     
     Args:
         log_level (str, optional): 日志级别，如果为None则从环境变量获取
@@ -265,11 +265,11 @@ def setup_logging(
     # 从环境变量获取配置
     debug_mode = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes", "on")
     env_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    env_environment = os.getenv("ENV", "development")
+    env_environment = os.getenv("ENV", "local")
     
     # 使用参数或环境变量
-    final_log_level = log_level or env_log_level
-    final_environment = environment or env_environment
+    final_log_level = log_level if log_level is not None else env_log_level
+    final_environment = environment if environment is not None else env_environment
     
     # 根据DEBUG环境变量自动设置日志级别
     if debug_mode and log_level is None:
@@ -279,14 +279,14 @@ def setup_logging(
     if use_colors is None:
         if debug_mode:
             use_colors = True
-        elif final_environment == "production":
+        elif final_environment == "prod":
             use_colors = False
         else:
             use_colors = True
     
     # 根据环境变量自动设置文件日志
     if log_to_file is None:
-        if final_environment in ("production", "test"):
+        if final_environment in ("prod", "test"):
             log_to_file = True
         else:
             log_to_file = debug_mode
@@ -387,7 +387,7 @@ def get_default_logging_config():
     # 从环境变量获取配置
     debug_mode = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes", "on")
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    environment = os.getenv("ENV", "development")
+    environment = os.getenv("ENV", "local")
     
     # 根据DEBUG环境变量自动设置日志级别
     if debug_mode:
@@ -396,13 +396,13 @@ def get_default_logging_config():
     # 根据环境变量自动设置彩色输出
     if debug_mode:
         use_colors = True
-    elif environment == "production":
+    elif environment == "prod":
         use_colors = False
     else:
         use_colors = COLORLOG_AVAILABLE
     
     # 根据环境变量自动设置文件日志
-    if environment in ("production", "test"):
+    if environment in ("prod", "test"):
         log_to_file = True
     else:
         log_to_file = debug_mode

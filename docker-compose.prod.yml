@@ -12,9 +12,9 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY}
       - PROJECT_NAME=${PROJECT_NAME}
-      - ENV=${ENV:-production}
-      - DEBUG=${DEBUG:-false}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENV=-prod
+      - DEBUG=false
+      - LOG_LEVEL=INFO
     networks:
       - app-network
     depends_on:

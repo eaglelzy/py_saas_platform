@@ -10,8 +10,8 @@ from src.saas.auth import api as auth_api
 # 未来应用层的模块将从这里导入
 # from src.app.profiles import api as profiles_api
 
-from src.core.logging import get_logger, setup_logging
-setup_logging()
+from src.core.logging import get_logger, init_logging_from_env
+init_logging_from_env()
 
 logger = get_logger(__name__)
 

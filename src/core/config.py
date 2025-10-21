@@ -11,10 +11,14 @@ class Settings(BaseSettings):
     应用配置管理类。
     """
 
+    # --- 环境配置 ---
+    ENV: str
+    DEBUG: bool
+    LOG_LEVEL: str
+
     # --- 核心项目配置 ---
     PROJECT_NAME: str = "Python SaaS Platform"
     API_V1_STR: str = "/api/v1"
-    DEBUG: bool = False
 
     # --- 数据库配置 ---
     DATABASE_URL: str
@@ -29,11 +33,36 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
 
     class Config:
-        env_file = ".env.test"
         env_file_encoding = "utf-8"
         case_sensitive = False
         # [新增] 告诉 Pydantic 忽略 .env 文件中未在上面定义的额外变量
         extra = 'ignore'
+
+        @classmethod
+        def customise_sources(
+            cls,
+            init_settings,
+            env_settings,
+            file_secret_settings,
+        ):
+            env = os.getenv("ENV", "local")
+            env_files = {
+                "local": ".env.local",
+                "test": ".env.test",
+                "prod": ".env.prod",
+            }
+            if env_file and os.path.exists(env_file):
+                return (
+                    init_settings,
+                    env_settings,
+                    file_secret_settings,
+                )
+            env_file = env_files.get(env)
+            return (
+                init_settings,
+                env_settings,
+                file_secret_settings,
+            )
 
 # 创建一个全局可用的 settings 实例
 settings = Settings()

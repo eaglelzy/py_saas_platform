@@ -8,15 +8,14 @@ services:
     container_name: app
     ports:
       # 使用 .env 文件中定义的端口
-      - "${APP_PORT:-3001}:8000"
+      - "${APP_PORT:-8080}:8000"
     environment:
-      # --- 从 .env 文件中读取变量 ---
-      - DATABASE_URL=${DATABASE_URL}
-      - SECRET_KEY=${SECRET_KEY}
-      - PROJECT_NAME=${PROJECT_NAME}
-      # --- 硬编码的环境变量 ---
-      - ENV=development
-      - DEBUG=true
+      # --- 从 .env 文件中读取变量，提供默认值 ---
+      - DATABASE_URL=${DATABASE_URL:-postgresql://lizy:Lzy142857@db:5432/study_assistant}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-for-local-development}
+      - PROJECT_NAME=${PROJECT_NAME:-Python SaaS Platform - Local}
+    env_file:
+      - .env.local
     volumes:
       - .:/app
     restart: unless-stopped
@@ -31,14 +30,14 @@ services:
     image: postgres:14-alpine
     container_name: db
     environment:
-      # 从 .env 文件中读取数据库配置
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      # 从 .env 文件中读取数据库配置，提供默认值
+      - POSTGRES_DB=${POSTGRES_DB:-study_assistant}
+      - POSTGRES_USER=${POSTGRES_USER:-lizy}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-Lzy142857}
     volumes:
       - study_db_data:/var/lib/postgresql/data
-      # 您之前的 init.sql 挂载保持不变
-      # - ./scripts/init_study_db.sql:/docker-entrypoint-initdb.d/init.sql
+      # 挂载初始化脚本（移到正确位置）
+      - ./scripts/init-database.sql:/docker-entrypoint-initdb.d/01-init-database.sql
     ports:
       # 使用 .env 文件中定义的端口
       - "${DB_PORT:-5432}:5432"
@@ -53,6 +52,9 @@ services:
     ports:
       # 使用 .env 文件中定义的端口
       - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      # 添加 Redis 数据持久化
+      - redis_data:/data
     restart: unless-stopped
     networks:
       - study-network
@@ -63,3 +65,4 @@ networks:
 
 volumes:
   study_db_data:
+  redis_data:  # 添加 Redis 数据卷
