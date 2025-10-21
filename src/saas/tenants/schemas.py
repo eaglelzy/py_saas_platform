@@ -4,86 +4,64 @@
 定义用于 API 请求验证和响应序列化的数据模型。
 """
 
-import re
-from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from datetime import datetime
+
+from src.core.validators import EmailStr, PhoneOrLandlineStr, SubdomainStr, PhoneStr, NotEmptyStr
 
 
 class TenantBase(BaseModel):
-    """租户基础模型"""
-    name: str = Field(..., min_length=1, max_length=100, description="租户名称")
+    """租户基础模型 (使用 Annotated 类型)"""
+    company_name: NotEmptyStr = Field(..., min_length=1, max_length=100, description="租户名称（公司或组织名称）")
+    company_address: NotEmptyStr = Field(..., min_length=1, max_length=255, description="公司地址")
+    company_phone: PhoneOrLandlineStr = Field(..., min_length=1, max_length=20, description="公司电话")
+    company_email: EmailStr = Field(..., min_length=1, max_length=100, description="公司邮箱")
+    company_website: Optional[str] = Field(None, max_length=255, description="公司网站")
+    company_logo: Optional[str] = Field(None, max_length=255, description="公司Logo")
+    contact_person: NotEmptyStr = Field(..., min_length=1, max_length=20, description="联系人姓名")
+    contact_phone: PhoneStr = Field(..., min_length=1, max_length=20, description="联系人电话")
+    subdomain: SubdomainStr = Field(..., min_length=3, max_length=100, description="子域名")
 
 
 class TenantCreate(TenantBase):
     """
-    创建租户的请求模型
-    
-    用于 POST /api/v1/tenants 端点
+    创建租户的请求模型 (使用 Annotated 类型)
+    校验逻辑已包含在类型中，无需 @field_validator
     """
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """自定义名称校验 - 只允许中英文和下划线"""
-        if not v or not v.strip():
-            raise ValueError('租户名称不能为空')
-        
-        # 去除首尾空格
-        v = v.strip()
-        
-        # 检查长度
-        if len(v) < 1:
-            raise ValueError('租户名称至少需要1个字符')
-        
-        if len(v) > 100:
-            raise ValueError('租户名称不能超过100个字符')
-        
-        # 检查是否只包含中文、英文、数字和下划线
-        # 正则表达式：^[\u4e00-\u9fa5a-zA-Z0-9_]+$
-        # \u4e00-\u9fa5: 中文字符范围
-        # a-zA-Z: 英文字母
-        # 0-9: 数字
-        # _: 下划线
-        if not re.match(r'^[\u4e00-\u9fa5a-zA-Z0-9_]+$', v):
-            raise ValueError('租户名称只能包含中文字符、英文字母、数字和下划线')
-        
-        return v
+    @model_validator(mode='after')
+    def check_phones_are_different(self) -> 'TenantCreate':
+        """
+        校验规则：公司总机电话和联系人电话不能相同。
+        """
+        if self.company_phone and self.contact_phone and self.company_phone == self.contact_phone:
+            raise ValueError('主要联系人电话不能与公司总机电话相同。')
+        return self
 
 
 class TenantUpdate(BaseModel):
     """
-    更新租户的请求模型
-    
-    用于 PUT /api/v1/tenants/{tenant_id} 端点
+    更新租户的请求模型 (使用 Annotated 类型)
     所有字段都是可选的，只更新提供的字段
     """
-    name: Optional[str] = Field(None, min_length=1, max_length=100, description="租户名称")
-    
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: Optional[str]) -> Optional[str]:
-        """自定义名称校验 - 只允许中英文和下划线"""
-        if v is None:
-            return v
-        
-        if not v or not v.strip():
-            raise ValueError('租户名称不能为空')
-        
-        # 去除首尾空格
-        v = v.strip()
-        
-        # 检查长度
-        if len(v) < 1:
-            raise ValueError('租户名称至少需要1个字符')
-        
-        if len(v) > 100:
-            raise ValueError('租户名称不能超过100个字符')
-        
-        # 检查是否只包含中文、英文、数字和下划线
-        if not re.match(r'^[\u4e00-\u9fa5a-zA-Z0-9_]+$', v):
-            raise ValueError('租户名称只能包含中文字符、英文字母、数字和下划线')
-        
-        return v
+    company_name: Optional[NotEmptyStr] = Field(None, min_length=1, max_length=100, description="租户名称")
+    company_address: Optional[NotEmptyStr] = Field(None, min_length=1, max_length=255, description="公司地址")
+    company_phone: Optional[PhoneStr] = Field(None, min_length=1, max_length=20, description="公司电话")
+    company_email: Optional[EmailStr] = Field(None, min_length=1, max_length=100, description="公司邮箱")
+    company_website: Optional[str] = Field(None, max_length=255, description="公司网站")
+    company_logo: Optional[str] = Field(None, max_length=255, description="公司Logo")
+    contact_person: Optional[NotEmptyStr] = Field(None, min_length=1, max_length=20, description="联系人姓名")
+    contact_phone: Optional[PhoneStr] = Field(None, min_length=1, max_length=20, description="联系人电话")
+    subdomain: Optional[SubdomainStr] = Field(None, min_length=3, max_length=100, description="子域名")
+
+    @model_validator(mode='after')
+    def check_phones_are_different_on_update(self) -> 'TenantUpdate':
+        """
+        更新时校验：如果同时提供了公司电话和联系人电话，则不能相同。
+        """
+        if self.company_phone and self.contact_phone and self.company_phone == self.contact_phone:
+            raise ValueError('主要联系人电话不能与公司总机电话相同。')
+        return self
 
 
 class TenantResponse(TenantBase):
@@ -93,6 +71,9 @@ class TenantResponse(TenantBase):
     用于所有返回单个租户信息的端点
     """
     id: int = Field(..., description="租户唯一标识符")
+    is_active: bool = Field(..., description="租户激活状态")
+    is_deleted: bool = Field(..., description="软删除标记")
+    deleted_at: Optional[datetime] = Field(None, description="删除时间")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
     
@@ -114,7 +95,7 @@ class TenantListResponse(BaseModel):
 class TenantActivate(BaseModel):
     """租户激活操作响应"""
     id: int
-    name: str
+    company_name: str
     is_active: bool = True
     message: str = "租户已激活"
 
@@ -122,7 +103,7 @@ class TenantActivate(BaseModel):
 class TenantDeactivate(BaseModel):
     """租户停用操作响应"""
     id: int
-    name: str
+    company_name: str
     is_active: bool = False
     message: str = "租户已停用"
 
@@ -130,7 +111,8 @@ class TenantDeactivate(BaseModel):
 class TenantStats(BaseModel):
     """租户统计信息响应"""
     id: int
-    name: str
+    company_name: str
+    subdomain: str
     user_count: int = Field(..., description="用户数量")
     created_at: datetime = Field(..., description="创建时间")
     last_activity: Optional[datetime] = Field(None, description="最后活动时间")
@@ -153,9 +135,24 @@ class TenantBulkCreate(BaseModel):
         "json_schema_extra": {
             "example": {
                 "tenants": [
-                    {"name": "租户A"},
-                    {"name": "租户B"},
-                    {"name": "租户C"}
+                    {
+                        "company_name": "ABC教育公司",
+                        "company_address": "北京市朝阳区xxx街道",
+                        "company_phone": "010-12345678",
+                        "company_email": "contact@abc.com",
+                        "contact_person": "张三",
+                        "contact_phone": "13800138000",
+                        "subdomain": "abc-edu"
+                    },
+                    {
+                        "company_name": "XYZ科技公司",
+                        "company_address": "上海市浦东新区xxx路",
+                        "company_phone": "021-87654321",
+                        "company_email": "info@xyz.com",
+                        "contact_person": "李四",
+                        "contact_phone": "13900139000",
+                        "subdomain": "xyz-tech"
+                    }
                 ]
             }
         }

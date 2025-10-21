@@ -24,7 +24,7 @@ class Tenant(Base, TimestampMixin):
     租户（Tenant）模型类
     
     租户代表 SaaS 平台中的一个独立企业或组织，是数据隔离的基本单位。
-    每个租户拥有自己的用户、学生和其他业务数据。
+    每个租户拥有自己的用户、和其他业务数据。
     
     继承关系：
     - Base: SQLAlchemy 的基础类，提供 ORM 映射功能
@@ -32,208 +32,189 @@ class Tenant(Base, TimestampMixin):
     
     数据库表结构：
     - id: 主键，自增整数
-    - name: 租户名称（公司或组织名称）
+    - company_name: 租户名称（公司或组织名称），必填
+    - company_address: 公司地址，必填
+    - company_phone: 公司电话，必填
+    - company_email: 公司邮箱，必填
+    - company_website: 公司网站，可选
+    - company_logo: 公司Logo URL，可选
+    - contact_person: 联系人姓名，必填
+    - contact_phone: 联系人电话，必填
+    - subdomain: 子域名，必填且唯一
+    - is_active: 租户激活状态，默认True
+    - is_deleted: 软删除标记，默认False
+    - deleted_at: 软删除时间，可选
     - created_at: 创建时间（来自 TimestampMixin）
     - updated_at: 更新时间（来自 TimestampMixin）
     
     关系映射：
     - users: 该租户下的所有用户（顾问）
-    - students: 该租户下的所有学生（客户）
     
     使用示例：
     ```python
     # 创建新租户
-    tenant = Tenant(name="ABC 教育公司")
+    tenant = Tenant(
+        company_name="ABC 教育公司",
+        company_address="北京市朝阳区xxx街道",
+        company_phone="010-12345678",
+        company_email="contact@abc.com",
+        contact_person="张三",
+        contact_phone="13800138000",
+        subdomain="abc-edu"
+    )
     db.add(tenant)
     db.commit()
     
     # 查询租户及其关联数据
-    tenant = db.query(Tenant).filter(Tenant.name == "ABC 教育公司").first()
-    print(f"租户: {tenant.name}")
-    print(f"用户数量: {len(tenant.users)}")
-    print(f"学生数量: {len(tenant.students)}")
+    tenant = db.query(Tenant).filter(Tenant.company_name == "ABC 教育公司").first()
+    print(f"租户: {tenant.company_name}")
+    print(f"用户数量: {tenant.get_user_count()}")
+    print(f"子域名URL: {tenant.get_subdomain_url()}")
     ```
     """
     __tablename__ = "tenants"
     
     # 1. 主键字段（必须第一个）
-    id = Column(Integer, primary_key=True, comment="租户唯一标识符")
+    id = Column(Integer, primary_key=True, comment="租户唯一标识符，自增整数主键")
     
-    # 2. 业务标识字段（最常用的查询字段）
-    name = Column(
+    # 2. 公司基本信息（核心业务字段）
+    company_name = Column(
         String(100), 
         nullable=False, 
-        comment="租户名称（公司或组织名称）"
+        comment="租户名称（公司或组织名称），必填字段，用于标识租户"
     )
-    
-    # 3. 状态字段（按查询频率排序）
+    company_address = Column(
+        String(255),
+        nullable=False,
+        comment="公司地址，必填字段，用于记录公司物理位置"
+    )
+    company_phone = Column(
+        String(20),
+        nullable=False,
+        comment="公司电话，必填字段，用于联系公司"
+    )
+    company_email = Column(
+        String(100),
+        nullable=False,
+        comment="公司邮箱，必填字段，用于官方邮件联系"
+    )
+    company_website = Column(
+        String(255),
+        nullable=True,
+        comment="公司网站，可选字段，存储公司官网URL"
+    )
+    company_logo = Column(
+        String(255),
+        nullable=True,
+        comment="公司Logo，可选字段，存储Logo图片URL"
+    )
+
+    # 3. 联系人信息（业务对接人员）
+    contact_person = Column(
+        String(20),
+        nullable=False,
+        comment="联系人姓名，必填字段，指定与租户对接的具体人员"
+    )
+    contact_phone = Column(
+        String(20),
+        nullable=False,
+        comment="联系人电话，必填字段，用于直接联系对接人员"
+    )
+
+    # 4. 多租户配置（SaaS架构核心字段）
+    subdomain = Column(
+        String(100),
+        nullable=False,
+        unique=True,  # 添加唯一约束，确保子域名不重复
+        comment="子域名，必填字段，用于多租户URL路由（如：abc.yoursaas.com）"
+    )
+
+    # 5. 状态字段（租户生命周期管理）
     is_active = Column(
         Boolean, 
         default=True,
         nullable=False,
-        comment="租户是否激活"
+        comment="租户激活状态，True=可用，False=停用，控制租户访问权限"
     )
-    
     is_deleted = Column(
         Boolean, 
         default=False,
         nullable=False,
-        comment="是否已删除（软删除）"
+        comment="软删除标记，True=已删除，False=正常，实现数据安全删除"
     )
     
-    # 4. 时间字段（TimestampMixin 会自动添加 created_at, updated_at）
+    # 6. 时间字段（TimestampMixin 会自动添加 created_at, updated_at）
     # 其他时间字段
     deleted_at = Column(
         DateTime,
         nullable=True,
-        comment="删除时间"
+        comment="软删除时间，记录租户被软删除的具体时间戳"
     )
 
-    # 5. 表级索引（性能优化）
+    # 7. 表级索引（数据库性能优化）
     __table_args__ = (
-        # 单列索引
-        Index('ix_tenants_name', 'name'),
-        Index('ix_tenants_is_active', 'is_active'),
-        Index('ix_tenants_is_deleted', 'is_deleted'),
-        Index('ix_tenants_created_at', 'created_at'),
+        # 单列索引（提高单字段查询性能）
+        Index('ix_tenants_company_name', 'company_name'),  # 租户名称查询
+        Index('ix_tenants_subdomain', 'subdomain'),        # 子域名查询（唯一）
+        Index('ix_tenants_is_active', 'is_active'),        # 激活状态查询
+        Index('ix_tenants_is_deleted', 'is_deleted'),      # 删除状态查询
+        Index('ix_tenants_created_at', 'created_at'),      # 创建时间排序
         
-        # 复合索引（常用查询组合）
-        Index('ix_tenants_active_not_deleted', 'is_active', 'is_deleted'),
-        Index('ix_tenants_name_active', 'name', 'is_active'),
+        # 复合索引（优化多字段组合查询）
+        Index('ix_tenants_active_not_deleted', 'is_active', 'is_deleted'),  # 可用租户查询
+        Index('ix_tenants_name_active', 'company_name', 'is_active'),        # 名称+状态查询
+        Index('ix_tenants_subdomain_active', 'subdomain', 'is_active'),      # 子域名+状态查询
         
         # 表注释
-        {'comment': '租户表 - 支持多租户数据隔离'}
+        {'comment': '租户表 - 支持多租户数据隔离，SaaS架构核心表'}
     )
 
-    # 6. 关系映射
+    # 8. 关系映射（ORM关联关系配置）
     # 一个租户拥有多个用户（顾问）
     users = relationship(
         "User", 
-        # back_populates: 建立双向关系映射
-        # - 在 Tenant 模型中，users 指向该租户的所有用户
-        # - 在 User 模型中，tenant 指向该用户所属的租户
-        # - 当修改任一端的对象时，另一端会自动同步更新
-        # - 例如：user.tenant = new_tenant 会自动更新 tenant.users 列表
-        back_populates="tenant", 
-        
-        # cascade: 级联操作设置
-        # "all" 表示所有操作都会级联到关联对象
-        # - save-update: 保存租户时，自动保存关联的用户
-        # - merge: 合并租户时，自动合并关联的用户
-        # - expunge: 从会话中移除租户时，自动移除关联的用户
-        # - refresh: 刷新租户时，自动刷新关联的用户
-        # - delete: 删除租户时，自动删除关联的用户
-        # "delete-orphan": 删除孤儿记录
-        # - 当用户与租户的关系被移除时（user.tenant = None），自动删除该用户
-        # - 这确保不会有"无主"的用户记录存在
-        cascade="all, delete-orphan",
-        
-        # lazy: 延迟加载策略
-        # "dynamic": 返回一个查询对象而不是实际的用户列表
-        # - 优点：可以进一步过滤和分页，性能更好
-        # - 用法：tenant.users.filter(User.is_active == True).all()
-        lazy="dynamic"
+        back_populates="tenant",  # 双向关系映射，User.tenant <-> Tenant.users
+        cascade="all, delete-orphan",  # 级联操作：删除租户时自动删除所有关联用户
+        lazy="dynamic"  # 延迟加载：返回查询对象而非列表，支持分页和过滤
     )
     
-    # 一个租户拥有多个学生（客户）
-    # 注意：Student 模型尚未创建，暂时注释掉此关系
-    # students = relationship(
-    #     "Student", 
-    #     # back_populates: 建立双向关系映射
-    #     # - 在 Tenant 模型中，students 指向该租户的所有学生
-    #     # - 在 Student 模型中，tenant 指向该学生所属的租户
-    #     # - 双向关系确保数据一致性，避免关系断裂
-    #     back_populates="tenant", 
-    #     
-    #     # cascade: 级联操作设置
-    #     # 当租户被删除时，所有关联的学生记录也会被删除
-    #     # 这确保了数据完整性，避免出现"孤儿"学生记录
-    #     # 在实际业务中，可能需要考虑软删除或数据迁移策略
-    #     cascade="all, delete-orphan",
-    #     
-    #     # lazy: 延迟加载策略
-    #     # 使用动态加载避免在查询租户时立即加载所有学生数据
-    #     # 这对于有大量学生的租户来说非常重要
-    #     lazy="dynamic"
-    # )
     
     def __repr__(self):
-        """
-        返回对象的字符串表示，用于调试和日志记录
-        
-        Returns:
-            str: 格式化的租户信息字符串
-        """
-        return f"<Tenant(id={self.id}, name='{self.name}')>"
+        """调试用字符串表示，用于日志和调试输出"""
+        return f"<Tenant(id={self.id}, company_name='{self.company_name}')>"
     
     def __str__(self):
-        """
-        返回对象的用户友好字符串表示
-        
-        Returns:
-            str: 租户名称
-        """
-        return self.name
+        """用户友好字符串表示，用于前端显示"""
+        return self.company_name
     
     # =============================================================================
-    # 状态管理方法
+    # 状态管理方法（租户生命周期管理）
     # =============================================================================
     
     def activate(self):
-        """
-        激活租户
-        
-        将租户状态设置为激活，租户可以正常使用系统。
-        """
+        """激活租户，允许租户正常使用系统"""
         self.is_active = True
     
     def deactivate(self):
-        """
-        停用租户
-        
-        将租户状态设置为非激活，租户无法使用系统。
-        """
+        """停用租户，禁止租户访问系统"""
         self.is_active = False
     
     def soft_delete(self):
-        """
-        软删除租户
-        
-        标记租户为已删除，但不从数据库中物理删除。
-        软删除的租户不会在正常查询中显示。
-        """
+        """软删除租户，标记删除但不物理删除数据"""
         self.is_deleted = True
         self.deleted_at = datetime.now(timezone.utc)
     
     def restore(self):
-        """
-        恢复软删除的租户
-        
-        取消软删除标记，租户重新可见。
-        """
+        """恢复软删除的租户，重新激活租户"""
         self.is_deleted = False
         self.deleted_at = None
     
     def is_available(self):
-        """
-        检查租户是否可用
-        
-        租户可用需要同时满足：
-        1. 已激活 (is_active = True)
-        2. 未删除 (is_deleted = False)
-        
-        Returns:
-            bool: 租户可用返回 True，否则返回 False
-        """
+        """检查租户是否可用（激活且未删除），用于权限验证"""
         return self.is_active and not self.is_deleted
     
     def get_status_display(self):
-        """
-        获取租户状态的中文显示名称
-        
-        Returns:
-            str: 状态的中文显示名称
-        """
+        """获取租户状态的中文显示名称，用于前端展示"""
         if self.is_deleted:
             return "已删除"
         elif not self.is_active:
@@ -242,12 +223,43 @@ class Tenant(Base, TimestampMixin):
             return "正常"
     
     def get_deleted_display(self):
-        """
-        获取删除时间的中文显示格式
-        
-        Returns:
-            str: 格式化的删除时间字符串
-        """
+        """获取删除时间的格式化显示，用于前端展示"""
         if self.deleted_at:
             return self.deleted_at.strftime("%Y-%m-%d %H:%M:%S")
         return "未删除"
+    
+    # =============================================================================
+    # 业务逻辑方法（扩展功能）
+    # =============================================================================
+    
+    def get_user_count(self):
+        """获取租户下的活跃用户数量"""
+        return self.users.filter_by(is_deleted=False).count()
+    
+    def can_add_user(self, max_users=None):
+        """检查是否可以添加新用户（基于配额限制）"""
+        if max_users is None:
+            return True  # 无限制
+        return self.get_user_count() < max_users
+    
+    def get_subdomain_url(self, base_domain="yoursaas.com"):
+        """获取租户的完整子域名URL"""
+        if self.subdomain:
+            return f"https://{self.subdomain}.{base_domain}"
+        return None
+    
+    def is_subdomain_available(self, subdomain):
+        """检查子域名是否可用（用于验证）"""
+        # 这个方法需要在实际使用时结合数据库查询
+        return subdomain and len(subdomain) >= 3
+    
+    def get_contact_info(self):
+        """获取完整的联系信息字典"""
+        return {
+            "company_name": self.company_name,
+            "company_phone": self.company_phone,
+            "company_email": self.company_email,
+            "company_address": self.company_address,
+            "contact_person": self.contact_person,
+            "contact_phone": self.contact_phone
+        }
