@@ -1,33 +1,31 @@
-# --- 第一阶段：构建器 (Builder) ---
-# 使用一个完整的 Python 镜像作为“构建器”
-FROM python:3.12-slim as builder
+# 使用官方 Python 3.12-slim 镜像作为基础镜像，便于快速获取运行时环境
+FROM python:3.12-slim AS base
 
+# 设置 Python 相关环境变量，提升容器运行效率
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+# 切换工作目录至应用根路径
 WORKDIR /app
 
-# 先只复制依赖文件
-COPY requirements.txt .
+# 安装编译依赖，确保 psycopg2 等库可以正确构建
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential libpq-dev curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# 在这个阶段安装所有依赖到一个临时的虚拟环境中
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --no-cache-dir -r requirements.txt
+# 复制依赖定义文件，提前安装依赖以利用 Docker 构建缓存
+COPY requirements.txt /app/requirements.txt
 
+# 升级 pip 并安装项目依赖
+RUN python -m pip install --upgrade pip \
+    && pip install -r requirements.txt
 
-# --- 第二阶段：最终镜像 (Final Image) ---
-FROM python:3.12-slim
+# 复制项目源代码到容器中
+COPY . /app
 
-WORKDIR /app
-
-# 只从“构建器”阶段复制已安装好的依赖库
-COPY --from=builder /opt/venv /opt/venv
-
-# 只复制我们需要的源代码目录
-COPY ./src ./src
-
-# 设置环境变量，让应用使用我们复制过来的虚拟环境
-ENV PATH="/opt/venv/bin:$PATH"
-
+# 暴露服务端口，默认供容器编排工具映射
 EXPOSE 8000
 
-# CMD 保持不变
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 定义容器启动命令，使用 Uvicorn 运行 FastAPI 应用
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

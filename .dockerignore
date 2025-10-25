@@ -1,43 +1,27 @@
-# Git and Docker files
+# 忽略 Git 版本控制目录
 .git
-.gitignore
-.dockerignore
-Dockerfile
-docker-compose.yml
-docker-compose.prod.yml  
-README.md
 
-# Environment files
-.env
-.env.example             
+# 忽略虚拟环境与依赖缓存
+venv
+.pytest_cache
+__pycache__
 
-# Python virtual environment
-venv/
-.venv/
+# 忽略本地日志与构建输出
+logs
+*.log
 
-# Python bytecode and cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# 忽略前端依赖目录
+node_modules
 
-# IDE and editor specific files
-.idea/
-.vscode/
+# 忽略 IDE 配置目录
+.vscode
+.idea
+
+# 忽略临时文件与系统文件
 *.swp
+*.swo
+*.DS_Store
 
-# Test artifacts
-.pytest_cache/
-.coverage
-
-# Build and distribution artifacts
-build/
-dist/
-*.egg-info/
-
-# Scripts
-scripts/                 # <-- 新增
-
-# OS-specific files
-.DS_Store
-Thumbs.db
+# 忽略环境变量文件，避免机密信息打包进镜像
+env/
+.env*

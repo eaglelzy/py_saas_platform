@@ -1,68 +1,87 @@
-# 设置项目名称，这将作为所有容器名称的前缀
-name: study-assistant
-
+# 使用 Docker Compose 编排开发环境所需的全部服务
 services:
-  # 留学助手应用
   app:
-    build: .
-    container_name: app
-    ports:
-      # 使用 .env 文件中定义的端口
-      - "${APP_PORT:-8080}:8000"
+    # 构建后端应用镜像，直接复用根目录下的 Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
-      # --- 从 .env 文件中读取变量，提供默认值 ---
-      - DATABASE_URL=${DATABASE_URL:-postgresql://lizy:Lzy142857@db:5432/study_assistant}
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-for-local-development}
-      - PROJECT_NAME=${PROJECT_NAME:-Python SaaS Platform - Local}
+      TZ: Asia/Shanghai  # 统一容器时区为东八区
+    # 使用开发环境变量文件，便于本地调试
     env_file:
-      - .env.local
+      - env/.env.development
+    # 暴露 FastAPI 服务端口
+    ports:
+      - "8000:8000"
+    # 挂载源代码以支持热重载
     volumes:
-      - .:/app
-    restart: unless-stopped
-    networks:
-      - study-network
+      - ./:/app
+      - /etc/localtime:/etc/localtime:ro  # 挂载宿主机时区配置
+    # 等待依赖服务准备就绪
     depends_on:
-      - db
+      - postgres
       - redis
+      - rabbitmq
+    # 采用开发模式启动，启用自动重载
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
 
-  # 留学助手数据库
-  db:
+  postgres:
+    # 使用官方 PostgreSQL 镜像，提供持久化数据库
     image: postgres:14-alpine
-    container_name: db
+    # 设置数据库初始凭据
     environment:
-      # 从 .env 文件中读取数据库配置，提供默认值
-      - POSTGRES_DB=${POSTGRES_DB:-study_assistant}
-      - POSTGRES_USER=${POSTGRES_USER:-lizy}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-Lzy142857}
-    volumes:
-      - study_db_data:/var/lib/postgresql/data
-      # 挂载初始化脚本（移到正确位置）
-      - ./scripts/init-database.sql:/docker-entrypoint-initdb.d/01-init-database.sql
+      POSTGRES_DB: saas_platform_dev  # 初始化数据库名称
+      POSTGRES_USER: postgres  # 数据库用户名
+      POSTGRES_PASSWORD: postgres  # 数据库密码
+      TZ: Asia/Shanghai  # 保持容器时区与宿主一致
+    # 映射数据库端口，方便外部工具调试
     ports:
-      # 使用 .env 文件中定义的端口
-      - "${DB_PORT:-5432}:5432"
-    restart: unless-stopped
-    networks:
-      - study-network
+      - "5432:5432"
+    # 挂载数据卷，保证容器销毁后数据仍保留
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro  # 挂载宿主机时区文件
 
-  # 留学助手 Redis
   redis:
+    # 使用官方 Redis 镜像，暂采用无密码配置供开发测试
     image: redis:7-alpine
-    container_name: redis
+    environment:
+      TZ: Asia/Shanghai  # 保持 Redis 容器时间与宿主一致
+    # 映射默认端口以便必要时外部连接
     ports:
-      # 使用 .env 文件中定义的端口
-      - "${REDIS_PORT:-6379}:6379"
+      - "6379:6379"
+    # 通过命令显式启用持久化策略
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    # 挂载数据卷，保存 Redis 快照
     volumes:
-      # 添加 Redis 数据持久化
       - redis_data:/data
-    restart: unless-stopped
-    networks:
-      - study-network
+      - /etc/localtime:/etc/localtime:ro  # 同步宿主机时区
 
-networks:
-  study-network:
-    driver: bridge
+  rabbitmq:
+    # 使用带管理界面的 RabbitMQ 镜像，方便查看队列状态
+    image: rabbitmq:3.13-management
+    # 配置默认账号与密码
+    environment:
+      RABBITMQ_DEFAULT_USER: guest  # 队列用户名
+      RABBITMQ_DEFAULT_PASS: guest  # 队列密码
+      TZ: Asia/Shanghai  # 保持 RabbitMQ 容器时间一致
+    # 映射 AMQP 与管理界面的端口
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    # 挂载队列数据，避免重启后丢失消息
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - /etc/localtime:/etc/localtime:ro  # 同步宿主机时区
 
 volumes:
-  study_db_data:
-  redis_data:  # 添加 Redis 数据卷
+  # PostgreSQL 数据卷定义
+  postgres_data:
+  # Redis 数据卷定义
+  redis_data:
+  # RabbitMQ 数据卷定义
+  rabbitmq_data:

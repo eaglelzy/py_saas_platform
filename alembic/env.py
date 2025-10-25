@@ -1,29 +1,25 @@
+
 from logging.config import fileConfig
-import os
+
 import sys
+from pathlib import Path
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
 
-# 添加项目根目录到Python路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure project root is on sys.path so Alembic can import app modules
+project_root = Path(__file__).resolve().parents[1]
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
-# 导入您的数据库配置和模型
-from src.core.db import Base
-from src.core.config import settings
-
-# 导入所有模型以确保它们被注册到Base.metadata
-from src.saas.users.user import User
-from src.saas.tenants.tanant import Tenant
+from app.db.base import Base
+from app import models  # noqa: F401  # ensure model metadata is registered
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-
-# 设置数据库URL
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -32,6 +28,8 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
+# from myapp import mymodel
+# target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
