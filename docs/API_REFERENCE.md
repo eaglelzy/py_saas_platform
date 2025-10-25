@@ -7,6 +7,17 @@
 | --- | --- | --- | --- |
 | GET | `/system/health` | 健康检查，返回 `{ "status": "ok" }` | 无 |
 
+## 认证
+| Method | Path | 描述 | 请求体 | 响应 |
+| --- | --- | --- | --- | --- |
+| POST | `/auth/login` | 用户登录，发放 Access/Refresh Token | `AuthLoginRequest` | `AuthenticatedResponse`
+| POST | `/auth/refresh` | 刷新 Access Token | `TokenRefreshRequest` | `AuthTokenPair`
+| POST | `/auth/logout` | 登出并撤销 Refresh Token | `LogoutRequest` | `{detail}`
+| POST | `/auth/activate` | 激活账号并设置密码 | `AccountActivationRequest` | `ActivationResponse`
+| POST | `/auth/password/change` | 登录态修改密码 | `PasswordChangeRequest` | `{detail}`
+| POST | `/auth/password/reset/request` | 发起密码重置 | `PasswordResetRequest` | `{detail}`
+| POST | `/auth/password/reset/confirm` | 使用 token 重置密码 | `PasswordResetConfirm` | `{detail}`
+
 ## 租户入驻申请
 | Method | Path | 描述 | 请求体 | 响应 |
 | --- | --- | --- | --- | --- |
@@ -35,7 +46,7 @@
 | POST | `/tenants/{tenant_id}/invitations` | 发送邀请邮件 | `MemberInvitationCreate` | `MemberInvitationRead`
 | GET | `/tenants/{tenant_id}/invitations` | 列出邀请，支持 `status_filter`, `page`, `size` | query | `PaginatedResponse[MemberInvitationRead]`
 | POST | `/tenants/{tenant_id}/invitations/{token}/revoke` | 撤销邀请 | - | `MemberInvitationRead`
-| POST | `/tenants/{tenant_id}/invitations/{token}/accept` | 受邀用户接受 | `InvitationAcceptRequest` | `InvitationAcceptResponse`
+| POST | `/tenants/{tenant_id}/invitations/{token}/accept` | 受邀用户通过链接接受邀请（必要时设置密码） | `InvitationAcceptRequest` | `InvitationAcceptResponse`
 
 ## 订阅套餐
 | Method | Path | 描述 | 请求体 | 响应 |

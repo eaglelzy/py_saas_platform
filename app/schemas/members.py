@@ -10,7 +10,7 @@ from pydantic import EmailStr, Field, field_validator
 from app.models.member_invitation import InvitationStatus
 from app.models.tenant_member import TenantMemberRole, TenantMemberStatus
 from app.schemas.common import IDMixin, ORMBaseModel, TimestampMixin
-from app.utils import validate_phone
+from app.utils import validate_phone, validate_password
 
 
 class TenantMemberBase(ORMBaseModel):
@@ -77,6 +77,7 @@ class MemberInvitationRead(IDMixin, ORMBaseModel, TimestampMixin):
 
     tenant_id: str = Field(description="租户 ID")
     invited_by_id: Optional[str] = Field(default=None, description="邀请者用户 ID")
+    user_id: Optional[str] = Field(default=None, description="受邀用户 ID")
     role: TenantMemberRole = Field(description="预设成员角色")
     email: EmailStr = Field(description="受邀成员邮箱")
     token: str = Field(description="邀请 token")
@@ -90,9 +91,15 @@ class MemberInvitationRead(IDMixin, ORMBaseModel, TimestampMixin):
 class InvitationAcceptRequest(ORMBaseModel):
     """受邀用户接受邀请时的请求体。"""
 
-    user_id: str = Field(description="接受邀请的用户 ID")
-    password: str = Field(min_length=8, description="设置登录密码")
+    password: Optional[str] = Field(default=None, min_length=8, description="设置登录密码（当账号未激活时必填）")
     display_name: Optional[str] = Field(default=None, max_length=150, description="用户展示名称")
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_optional(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        return validate_password(value)
 
 
 class InvitationAcceptResponse(ORMBaseModel):

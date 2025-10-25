@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     # 业务参数
     rate_limit_per_minute: int = Field(120, description="每分钟请求限流阈值")
     invite_token_expire_hours: int = Field(48, description="邀请链接过期时间（小时）")
+    activation_token_expire_hours: int = Field(48, description="账号激活链接过期时间（小时）")
+    frontend_activation_url: str = Field("http://localhost:3000/activate", description="前端激活链接基础 URL")
+    frontend_password_reset_url: str = Field("http://localhost:3000/reset-password", description="前端密码重置链接基础 URL")
+    frontend_invitation_url: str = Field("http://localhost:3000/invitations/accept", description="前端成员邀请接受链接基础 URL")
+    default_owner_permissions: tuple[str, ...] = Field(("tenant:member:manage", "tenant:subscription:manage", "tenant:setting:view"), description="Owner 默认权限")
+    default_admin_permissions: tuple[str, ...] = Field(("tenant:member:manage", "tenant:setting:view"), description="Admin 默认权限")
+    default_member_permissions: tuple[str, ...] = Field(("tenant:setting:view",), description="普通成员默认权限")
+    permission_cache_ttl_seconds: int = Field(15 * 60, description="租户权限缓存时长（秒）")
 
     # 监控端点
     prometheus_endpoint: str = Field("http://localhost:9090", description="Prometheus 地址")

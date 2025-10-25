@@ -10,8 +10,10 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
+from app.core.security.password import get_password_hash
 from app.models.member_invitation import InvitationStatus, MemberInvitation
-from app.models.tenant_member import TenantMember, TenantMemberStatus
+from app.models.tenant_member import TenantMember, TenantMemberStatus, TenantMemberRole
+from app.models.user import User
 from app.schemas.common import PaginatedResponse
 from app.schemas.members import (
     InvitationAcceptRequest,
@@ -25,6 +27,8 @@ from app.services.exceptions import ConflictError, NotFoundError, ValidationErro
 from app.services.members.repository import MemberInvitationRepository, TenantMemberRepository
 from app.services.pagination import PaginationParams, build_paginated_response, paginate_stmt
 from app.services.tenants.repository import TenantRepository
+from app.services.notifications import NotificationService
+from app.services.audit import AuditService
 
 
 class TenantMemberService:
@@ -120,18 +124,24 @@ class MemberInvitationService:
         payload: MemberInvitationCreate,
         *,
         invited_by_id: Optional[str] = None,
+        notifier: Optional[NotificationService] = None,
+        audit_service: Optional[AuditService] = None,
     ) -> MemberInvitation:
         pending_invites = self.invite_repo.list_pending(db, tenant_id=tenant_id)
         if any(inv.email == payload.email for inv in pending_invites):
             raise ConflictError("该邮箱已存在待处理邀请", code="invitation_exists")
         self._ensure_quota(db, tenant_id)
+
+        user = self._ensure_invited_user(db, payload.email)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.invite_token_expire_hours)
+        token = self._generate_token()
         invitation_data = {
             "tenant_id": tenant_id,
             "invited_by_id": invited_by_id,
+            "user_id": user.id,
             "role": payload.role,
             "email": payload.email,
-            "token": self._generate_token(),
+            "token": token,
             "status": InvitationStatus.PENDING,
             "expires_at": expires_at,
             "message": payload.message,
@@ -139,6 +149,24 @@ class MemberInvitationService:
         invitation = self.invite_repo.create(db, obj_in=invitation_data)
         db.commit()
         db.refresh(invitation)
+
+        invite_url = f"{settings.frontend_invitation_url}?token={token}"
+        (notifier or NotificationService()).send_member_invitation(
+            email=payload.email,
+            invite_url=invite_url,
+            tenant_name=invitation.tenant.name,
+            role=payload.role.value,
+        )
+
+        if audit_service:
+            audit_service.log_event(
+                db,
+                user_id=invited_by_id,
+                tenant_id=tenant_id,
+                action="member_invitation_created",
+                metadata={"email": payload.email, "role": payload.role.value},
+            )
+
         return invitation
 
     def get_invitation(self, db: Session, token: str) -> MemberInvitation:
@@ -178,9 +206,13 @@ class MemberInvitationService:
         db: Session,
         token: str,
         *,
-        user_id: str,
+        request: InvitationAcceptRequest,
+        audit_service: Optional[AuditService] = None,
+        expected_tenant_id: Optional[str] = None,
     ) -> InvitationAcceptResponse:
         invitation = self.get_invitation(db, token)
+        if expected_tenant_id and str(invitation.tenant_id) != expected_tenant_id:
+            raise NotFoundError("邀请不存在", code="invitation_not_found")
         if invitation.status != InvitationStatus.PENDING:
             raise ValidationError("邀请不可用", code="invitation_not_active")
         if invitation.expires_at and invitation.expires_at < datetime.now(timezone.utc):
@@ -189,12 +221,30 @@ class MemberInvitationService:
             db.commit()
             raise ValidationError("邀请已过期", code="invitation_expired")
 
-        member = self.member_repo.get_by_user(db, tenant_id=str(invitation.tenant_id), user_id=user_id)
+        user = db.get(User, invitation.user_id) if invitation.user_id else None
+        if user is None:
+            user = self._ensure_invited_user(db, invitation.email)
+            invitation.user_id = user.id
+            db.add(invitation)
+
+        if not user.is_active:
+            if not request.password:
+                raise ValidationError("账号未激活，需要设置密码", code="password_required")
+            user.hashed_password = get_password_hash(request.password)
+            user.is_active = True
+            user.is_locked = False
+            user.password_updated_at = datetime.now(timezone.utc)
+        if request.display_name:
+            user.display_name = request.display_name
+        db.add(user)
+
+        member = self.member_repo.get_by_user(db, tenant_id=str(invitation.tenant_id), user_id=str(user.id))
+        now = datetime.now(timezone.utc)
         if member:
             if member.status == TenantMemberStatus.REMOVED:
                 member.status = TenantMemberStatus.ACTIVE
                 member.role = invitation.role
-                member.activated_at = datetime.now(timezone.utc)
+                member.activated_at = now
                 db.add(member)
             else:
                 raise ConflictError("用户已是成员", code="member_exists")
@@ -202,20 +252,46 @@ class MemberInvitationService:
             self.tenant_repo.get_or_raise(db, id=str(invitation.tenant_id))
             member_data = {
                 "tenant_id": str(invitation.tenant_id),
-                "user_id": user_id,
+                "user_id": str(user.id),
                 "role": invitation.role,
                 "status": TenantMemberStatus.ACTIVE,
                 "invited_by_id": invitation.invited_by_id,
-                "activated_at": datetime.now(timezone.utc),
+                "activated_at": now,
             }
             member = self.member_repo.create(db, obj_in=member_data)
 
         invitation.status = InvitationStatus.ACCEPTED
-        invitation.accepted_at = datetime.now(timezone.utc)
+        invitation.accepted_at = now
         db.add(invitation)
         db.commit()
         db.refresh(invitation)
         db.refresh(member)
 
+        if audit_service:
+            audit_service.log_event(
+                db,
+                user_id=str(user.id),
+                tenant_id=str(invitation.tenant_id),
+                action="member_invitation_accepted",
+                metadata={"role": invitation.role.value},
+            )
+
         member_read = TenantMemberRead.model_validate(member)
         return InvitationAcceptResponse(member=member_read, tenant_id=str(invitation.tenant_id))
+
+    def _ensure_invited_user(self, db: Session, email: str) -> User:
+        stmt = select(User).where(User.email == email)
+        user = db.execute(stmt).scalars().first()
+        if user:
+            return user
+
+        user = User(
+            email=email,
+            hashed_password=get_password_hash(secrets.token_urlsafe(16)),
+            display_name=email.split("@")[0],
+            is_active=False,
+            is_locked=False,
+        )
+        db.add(user)
+        db.flush()
+        return user

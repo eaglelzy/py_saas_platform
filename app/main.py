@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.v1.routers import api_router
 from app.core.config.settings import settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging, logger
+from app.core.tenancy import TenantContextMiddleware
 from fastapi.exceptions import RequestValidationError
 
 from app.core.exceptions import (
@@ -26,6 +27,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     # 挂载请求日志中间件，统一注入 Request ID 并输出访问日志
+    app.add_middleware(TenantContextMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_exception_handler(ServiceError, service_error_handler)
     app.add_exception_handler(Exception, generic_error_handler)

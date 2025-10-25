@@ -5,12 +5,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
+import secrets
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
+from app.core.config.settings import settings
 from app.models.tenant import Tenant, TenantStatus, PlanCode
 from app.models.tenant_application import ApplicationStatus, TenantApplication
+from app.models.user import User
+from app.models.tenant_member import TenantMember, TenantMemberRole, TenantMemberStatus
 from app.schemas.tenants import TenantCreate, TenantPlanUpdate, TenantUpdate
 from app.schemas.applications import TenantApplicationReview, TenantApplicationSubmit
 from app.schemas.common import PaginatedResponse
@@ -18,6 +22,8 @@ from app.services.exceptions import ConflictError, ValidationError
 from app.services.pagination import PaginationParams, build_paginated_response, paginate_stmt
 from app.services.tenants.repository import TenantApplicationRepository, TenantRepository
 from app.services.notifications import NotificationService
+from app.services.auth.activation_service import ActivationTokenService
+from app.core.security.password import get_password_hash
 
 
 class TenantService:
@@ -101,6 +107,7 @@ class TenantApplicationService:
 
     def __init__(self) -> None:
         self.repo = TenantApplicationRepository()
+        self.tenant_repo = TenantRepository()
 
     def submit(self, db: Session, payload: TenantApplicationSubmit) -> TenantApplication:
         existing = self.repo.find_pending_by_company_and_email(
@@ -148,6 +155,7 @@ class TenantApplicationService:
         *,
         tenant_service: Optional[TenantService] = None,
         notification_service: Optional[NotificationService] = None,
+        activation_service: Optional[ActivationTokenService] = None,
     ) -> TenantApplication:
         application = self.repo.get_or_raise(db, id=application_id)
         if application.status != ApplicationStatus.PENDING:
@@ -166,19 +174,22 @@ class TenantApplicationService:
         application.notes = payload.notes
 
         created_tenant: Optional[Tenant] = None
+        activation_token_value: Optional[str] = None
+        activation_link: Optional[str] = None
         if payload.status == ApplicationStatus.APPROVED:
+            if tenant_service is None:
+                raise ValidationError("审批通过需要提供 tenant_service", code="tenant_service_required")
+
+            owner = self._ensure_owner_user(db, application)
+
             if payload.tenant_id:
                 application.tenant_id = payload.tenant_id
             else:
-                if tenant_service is None:
-                    raise ValidationError("审批通过需要提供 tenant_service", code="tenant_service_required")
-                if not application.submitted_by_user_id:
-                    raise ValidationError("审批通过需要提交人用户 ID", code="owner_required")
                 slug = application.company_name.lower().replace(" ", "-")
                 tenant_payload = TenantCreate(
                     name=application.company_name,
                     slug=slug,
-                    primary_owner_id=str(application.submitted_by_user_id),
+                    primary_owner_id=str(owner.id),
                     plan_code=PlanCode.FREE,
                     member_limit=5,
                     contact_name=application.contact_name,
@@ -189,13 +200,79 @@ class TenantApplicationService:
                 created_tenant = tenant_service.create_tenant(db, tenant_payload)
                 application.tenant_id = str(created_tenant.id)
 
+            if activation_service is None:
+                raise ValidationError("审批通过需要 activation_service", code="activation_service_required")
+            activation_record = activation_service.create_or_refresh(db, user=owner)
+            activation_token_value = activation_record.token
+            activation_link = f"{settings.frontend_activation_url}?token={activation_token_value}"
+            if application.tenant_id:
+                self._ensure_owner_membership(db, UUID(application.tenant_id), owner)
+
         db.add(application)
         db.commit()
         db.refresh(application)
 
         notifier = notification_service or NotificationService()
         if payload.status == ApplicationStatus.APPROVED:
-            notifier.send_application_approved(application, created_tenant)
+            notifier.send_application_approved(
+                application,
+                token=activation_token_value or "",
+                tenant=created_tenant,
+                activation_url=activation_link,
+            )
         else:
             notifier.send_application_rejected(application)
         return application
+
+    def _ensure_owner_user(self, db: Session, application: TenantApplication) -> User:
+        owner: Optional[User] = None
+        if application.submitted_by_user_id:
+            owner = db.get(User, application.submitted_by_user_id)
+        if owner:
+            return owner
+
+        stmt = select(User).where(User.email == application.contact_email)
+        owner = db.execute(stmt).scalars().first()
+        if owner:
+            application.submitted_by_user_id = owner.id
+            db.add(application)
+            return owner
+
+        owner = User(
+            email=application.contact_email,
+            hashed_password=get_password_hash(secrets.token_urlsafe(16)),
+            full_name=application.contact_name,
+            display_name=application.contact_name,
+            is_active=False,
+            is_locked=False,
+            is_superuser=True
+        )
+        db.add(owner)
+        db.flush()
+        application.submitted_by_user_id = owner.id
+        db.add(application)
+        return owner
+
+    def _ensure_owner_membership(self, db: Session, tenant_id: UUID, owner: User) -> None:
+        stmt = select(TenantMember).where(
+            TenantMember.tenant_id == tenant_id,
+            TenantMember.user_id == owner.id,
+        )
+        member = db.execute(stmt).scalars().first()
+        now = datetime.now(timezone.utc)
+        if member:
+            member.role = TenantMemberRole.OWNER
+            member.status = TenantMemberStatus.ACTIVE
+            member.activated_at = now
+            db.add(member)
+            return
+
+        member = TenantMember(
+            tenant_id=tenant_id,
+            user_id=owner.id,
+            role=TenantMemberRole.OWNER,
+            status=TenantMemberStatus.ACTIVE,
+            activated_at=now,
+            invited_by_id=owner.id,
+        )
+        db.add(member)

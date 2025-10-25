@@ -9,7 +9,11 @@ from app.api.v1.dependencies import (
     get_db_session,
     member_invitation_service,
     tenant_member_service,
+    notification_service,
+    audit_service,
+    require_permissions,
 )
+from app.core.tenancy import TenantContext
 from app.schemas.common import PaginatedResponse
 from app.schemas.members import (
     InvitationAcceptRequest,
@@ -35,7 +39,10 @@ def add_member(
     payload: TenantMemberCreate,
     db: Session = Depends(get_db_session),
     service: TenantMemberService = Depends(tenant_member_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:member:manage")),
 ) -> TenantMemberRead:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     try:
         member = service.add_member(db, tenant_id, payload)
         return TenantMemberRead.model_validate(member)
@@ -51,7 +58,10 @@ def list_members(
     status_filter: str | None = None,
     db: Session = Depends(get_db_session),
     service: TenantMemberService = Depends(tenant_member_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:setting:view")),
 ) -> PaginatedResponse[TenantMemberRead]:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     params = PaginationParams(page=page, size=size)
     status_enum: TenantMemberStatus | None = None
     if status_filter:
@@ -73,7 +83,10 @@ def update_member(
     payload: TenantMemberUpdate,
     db: Session = Depends(get_db_session),
     service: TenantMemberService = Depends(tenant_member_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:member:manage")),
 ) -> TenantMemberRead:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     try:
         member = service.update_member(db, tenant_id, member_id, payload)
         return TenantMemberRead.model_validate(member)
@@ -87,7 +100,10 @@ def remove_member(
     member_id: str,
     db: Session = Depends(get_db_session),
     service: TenantMemberService = Depends(tenant_member_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:member:manage")),
 ) -> TenantMemberRead:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     try:
         member = service.remove_member(db, tenant_id, member_id)
         return TenantMemberRead.model_validate(member)
@@ -101,9 +117,21 @@ def create_invitation(
     payload: MemberInvitationCreate,
     db: Session = Depends(get_db_session),
     service: MemberInvitationService = Depends(member_invitation_service),
+    notifier = Depends(notification_service),
+    audit = Depends(audit_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:member:manage")),
 ) -> MemberInvitationRead:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     try:
-        invitation = service.create_invitation(db, tenant_id, payload)
+        invitation = service.create_invitation(
+            db,
+            tenant_id,
+            payload,
+            notifier=notifier,
+            audit_service=audit,
+            invited_by_id=str(tenant_ctx.user.id),
+        )
         return MemberInvitationRead.model_validate(invitation)
     except (ConflictError, ValidationError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -117,7 +145,10 @@ def list_invitations(
     status_filter: str | None = None,
     db: Session = Depends(get_db_session),
     service: MemberInvitationService = Depends(member_invitation_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:member:manage")),
 ) -> PaginatedResponse[MemberInvitationRead]:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     params = PaginationParams(page=page, size=size)
     status_enum: InvitationStatus | None = None
     if status_filter:
@@ -138,7 +169,10 @@ def revoke_invitation(
     token: str,
     db: Session = Depends(get_db_session),
     service: MemberInvitationService = Depends(member_invitation_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:member:manage")),
 ) -> MemberInvitationRead:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     try:
         invitation = service.revoke_invitation(db, token)
         return MemberInvitationRead.model_validate(invitation)
@@ -155,9 +189,16 @@ def accept_invitation(
     request: InvitationAcceptRequest,
     db: Session = Depends(get_db_session),
     service: MemberInvitationService = Depends(member_invitation_service),
+    audit = Depends(audit_service),
 ) -> InvitationAcceptResponse:
     try:
-        response = service.accept_invitation(db, token, user_id=request.user_id, request=request)
+        response = service.accept_invitation(
+            db,
+            token,
+            request=request,
+            audit_service=audit,
+            expected_tenant_id=tenant_id,
+        )
         return response
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

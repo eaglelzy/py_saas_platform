@@ -1,22 +1,23 @@
 # 项目常用脚本入口，使用 `make <target>` 调用
 
-PYTHON ?= python
-UVICORN ?= uvicorn
 ENV_FILE ?= env/.env.development
+PYTHON ?= python
 
-.PHONY: help install format lint test superuser run docker-up docker-down
+.PHONY: help install format lint test superuser build-app build-up-app up-app up-all docker-down migrate
 
 help:
 	@echo "可用命令:"
 	@echo "  make install       安装依赖 (pip install -r requirements.txt)"
-	@echo "  make format        运行 code formatter (目前预留)"
-	@echo "  make lint          运行静态检查 (预留)"
+	@echo "  make format        运行 code formatter (占位)"
+	@echo "  make lint          运行静态检查 (占位)"
 	@echo "  make test          运行单元测试"
-	@echo "  make superuser     读取 ENV_FILE 创建超级管理员"
-	@echo "  make build-app     构建 app 服务"
+	@echo "  make superuser     在容器内执行超级管理员脚本"
+	@echo "  make build-app     构建 app 镜像"
 	@echo "  make build-up-app  构建并启动 app 服务"
-	@echo "  make up-app     	启动 app 服务"
-	@echo "  make up-all      	启动所有服务"
+	@echo "  make up-app        启动 app 服务"
+	@echo "  make up-all        启动全部服务"
+	@echo "  make docker-down   停止所有 docker 服务"
+	@echo "  make migrate       容器内执行 alembic upgrade head"
 
 install:
 	pip install -r requirements.txt
@@ -44,3 +45,9 @@ up-app:
 
 up-all:
 	docker compose up -d
+
+docker-down:
+	docker compose down
+
+migrate:
+	docker compose run --rm -e ENV_FILE=$(ENV_FILE) app alembic upgrade head

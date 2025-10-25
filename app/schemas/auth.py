@@ -8,6 +8,7 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.schemas.common import ORMBaseModel
+from app.utils import validate_password
 from app.schemas.users import UserRead
 
 
@@ -50,12 +51,53 @@ class PasswordChangeRequest(BaseModel):
     current_password: str = Field(min_length=8, description="当前密码")
     new_password: str = Field(min_length=8, description="新密码")
 
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        return validate_password(value)
+
+
+class AccountActivationRequest(BaseModel):
+    """账号激活请求体。"""
+
+    token: str = Field(description="激活 token")
+    password: str = Field(min_length=8, description="设置的新密码")
+
+    @field_validator("password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        return validate_password(value)
+
 
 class AuthenticatedResponse(ORMBaseModel):
     """携带用户信息的认证响应。"""
 
     token: AuthTokenPair = Field(description="Token 信息")
     user: UserRead = Field(description="登录用户信息")
+
+
+class ActivationResponse(BaseModel):
+    """账号激活成功后的响应。"""
+
+    detail: str = Field(default="账号激活成功，请使用新密码登录")
+
+
+class PasswordResetRequest(BaseModel):
+    """发起密码重置请求体。"""
+
+    email: EmailStr = Field(description="账号邮箱")
+
+
+class PasswordResetConfirm(BaseModel):
+    """确认密码重置请求体。"""
+
+    token: str = Field(description="重置 token")
+    password: str = Field(min_length=8, description="新的登录密码")
+
+    @field_validator("password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        return validate_password(value)
 
 
 class TokenIntrospectionResponse(BaseModel):

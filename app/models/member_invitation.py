@@ -57,6 +57,11 @@ class MemberInvitation(TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         comment="邀请发起者用户 ID",
     )
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        comment="受邀用户 ID",
+    )
     role = Column(
         Enum(TenantMemberRole, name="member_invitation_role"),
         nullable=False,

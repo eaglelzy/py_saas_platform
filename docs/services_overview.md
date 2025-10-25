@@ -10,6 +10,12 @@
 ## 成员领域
 - `TenantMemberService`：成员增删改查、配额校验。
 - `MemberInvitationService`：邀请创建、撤销、接受以及配额管控。
+  - 新用户会在邀请阶段自动建号并发送激活链接，接受时可设置密码。
+
+## 认证领域
+- 登录、刷新、登出、修改密码、重置密码 API。与 `ActivationTokenService`、`RefreshTokenService` 配合，发放/撤销 JWT 与刷新令牌。
+- 激活/重置邮件通过 `NotificationService` 发送（当前日志占位）。
+- 审计通过 `AuditService` 落表并记录关键事件（登录、激活、重置等）。
 
 ## 订阅领域
 - `SubscriptionPlanService`：套餐配置管理、启停控制。

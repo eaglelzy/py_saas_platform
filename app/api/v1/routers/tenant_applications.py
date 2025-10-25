@@ -18,6 +18,7 @@ from app.api.v1.dependencies import (
     tenant_application_service,
     tenant_service,
     notification_service,
+    activation_token_service,
 )
 from app.schemas.applications import TenantApplicationRead, TenantApplicationReview, TenantApplicationSubmit
 from app.schemas.common import PaginatedResponse
@@ -25,6 +26,7 @@ from app.services.exceptions import ServiceError, NotFoundError, ValidationError
 from app.services.pagination import PaginationParams
 from app.services.tenants.service import TenantApplicationService, TenantService
 from app.services.notifications import NotificationService
+from app.services.auth.activation_service import ActivationTokenService
 from app.models.tenant_application import ApplicationStatus
 
 router = APIRouter(prefix="/tenant-applications", tags=["tenant-applications"])
@@ -83,6 +85,7 @@ def review_application(
     service: TenantApplicationService = Depends(tenant_application_service),
     tenant_svc: TenantService = Depends(tenant_service),
     notifier: NotificationService = Depends(notification_service),
+    activation_svc: ActivationTokenService = Depends(activation_token_service),
 ) -> TenantApplicationRead:
     """审核申请（通过/驳回）。"""
     try:
@@ -92,6 +95,7 @@ def review_application(
             payload,
             tenant_service=tenant_svc,
             notification_service=notifier,
+            activation_service=activation_svc,
         )
         return TenantApplicationRead.model_validate(application)
     except NotFoundError as exc:

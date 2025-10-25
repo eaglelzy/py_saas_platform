@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.api.v1.dependencies import (
     get_db_session,
     tenant_subscription_service,
+    require_permissions,
 )
+from app.core.tenancy import TenantContext
 from app.schemas.common import PaginatedResponse
 from app.schemas.subscriptions import (
     TenantSubscriptionCreate,
@@ -28,7 +30,10 @@ def create_subscription(
     payload: TenantSubscriptionCreate,
     db: Session = Depends(get_db_session),
     service: TenantSubscriptionService = Depends(tenant_subscription_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:subscription:manage")),
 ) -> TenantSubscriptionRead:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     payload_data = payload.model_copy(update={"tenant_id": tenant_id})
     try:
         subscription = service.create_subscription(db, payload_data)
@@ -44,7 +49,10 @@ def list_subscriptions(
     size: int = 20,
     db: Session = Depends(get_db_session),
     service: TenantSubscriptionService = Depends(tenant_subscription_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:subscription:manage")),
 ) -> PaginatedResponse[TenantSubscriptionRead]:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     params = PaginationParams(page=page, size=size)
     result = service.list_subscriptions(db, tenant_id, params)
     return PaginatedResponse[TenantSubscriptionRead](
@@ -59,7 +67,10 @@ def get_subscription(
     subscription_id: str,
     db: Session = Depends(get_db_session),
     service: TenantSubscriptionService = Depends(tenant_subscription_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:subscription:manage")),
 ) -> TenantSubscriptionRead:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     try:
         subscription = service.get_subscription(db, subscription_id)
         if str(subscription.tenant_id) != tenant_id:
@@ -76,7 +87,10 @@ def update_subscription(
     payload: TenantSubscriptionUpdate,
     db: Session = Depends(get_db_session),
     service: TenantSubscriptionService = Depends(tenant_subscription_service),
+    tenant_ctx: TenantContext = Depends(require_permissions("tenant:subscription:manage")),
 ) -> TenantSubscriptionRead:
+    if str(tenant_ctx.tenant.id) != tenant_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="租户上下文不匹配")
     try:
         subscription = service.update_subscription(db, subscription_id, payload)
         if str(subscription.tenant_id) != tenant_id:

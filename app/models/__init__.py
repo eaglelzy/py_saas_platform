@@ -8,6 +8,10 @@ from app.models.tenant_application import TenantApplication
 from app.models.tenant import Tenant
 from app.models.tenant_member import TenantMember
 from app.models.user import User
+from app.models.activation_token import ActivationToken
+from app.models.audit_log import AuditLog
+from app.models.refresh_token import RefreshToken
+from app.models.tenant_permission import TenantRolePermission
 
 __all__ = (
     "User",
@@ -18,4 +22,8 @@ __all__ = (
     "SubscriptionPlan",
     "TenantSubscription",
     "SubscriptionOrder",
+    "ActivationToken",
+    "AuditLog",
+    "RefreshToken",
+    "TenantRolePermission",
 )

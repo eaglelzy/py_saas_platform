@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from .system import router as system_router
+from .auth import router as auth_router
 from .tenant_applications import router as tenant_applications_router
 from .tenants import router as tenants_router
 from .members import router as members_router
@@ -12,6 +13,7 @@ from .subscription_orders import router as subscription_orders_router
 
 api_router = APIRouter()
 api_router.include_router(system_router, prefix="/system", tags=["system"])
+api_router.include_router(auth_router)
 api_router.include_router(tenant_applications_router)
 api_router.include_router(tenants_router)
 api_router.include_router(members_router)
