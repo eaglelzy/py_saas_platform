@@ -17,6 +17,7 @@ help:
 	@echo "  make up-app        启动 app 服务"
 	@echo "  make up-all        启动全部服务"
 	@echo "  make docker-down   停止所有 docker 服务"
+	@echo "  make logs-app      查看 app 服务日志"
 	@echo "  make migrate       容器内执行 alembic upgrade head"
 
 install:
@@ -45,6 +46,9 @@ up-app:
 
 up-all:
 	docker compose up -d
+
+logs-app:
+	docker compose logs -f app
 
 docker-down:
 	docker compose down

@@ -7,7 +7,9 @@ from typing import Pattern
 
 
 SLUG_PATTERN: Pattern[str] = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-PHONE_PATTERN: Pattern[str] = re.compile(r"^[0-9+\-()\s]{5,32}$")
+# PHONE_PATTERN: Pattern[str] = re.compile(r"^[0-9+\-()\s]{5,32}$")
+# 中国手机号正则（支持三大运营商）
+CHINESE_PHONE_PATTERN: Pattern[str] = re.compile(r"^1[3-9]\d{9}$")
 PASSWORD_PATTERN: Pattern[str] = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*()_+\-=]{8,128}$")
 
 
@@ -24,8 +26,8 @@ def validate_phone(value: str) -> str:
     """校验手机号或电话。"""
 
     candidate = value.strip()
-    if not PHONE_PATTERN.match(candidate):
-        raise ValueError("电话格式不正确")
+    if not CHINESE_PHONE_PATTERN.match(candidate):
+        raise ValueError("手机号格式不正确，请输入正确的11位手机号")
     return candidate
 
 

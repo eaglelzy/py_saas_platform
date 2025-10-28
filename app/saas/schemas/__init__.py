@@ -12,6 +12,7 @@ from app.saas.schemas.auth import (
     TokenRefreshRequest,
 )
 from app.saas.schemas.common import (
+    SuccessResponse,
     ErrorResponse,
     IDMixin,
     ORMBaseModel,

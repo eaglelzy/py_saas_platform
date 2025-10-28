@@ -23,6 +23,16 @@ class AuthLoginRequest(BaseModel):
     def normalize_email(cls, value: EmailStr) -> EmailStr:
         return str(value).lower()
 
+class VerifyRegisterRequest(BaseModel):
+    """发送注册验证码请求体。"""
+
+    email: EmailStr = Field(description="登录邮箱")
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: EmailStr) -> EmailStr:
+        return str(value).lower()
+
 
 class ConsultantRegisterRequest(BaseModel):
     """顾问注册请求体。"""
@@ -42,7 +52,7 @@ class ConsultantRegisterRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def normalize_email(cls, value: EmailStr) -> EmailStr:
-        return EmailStr(str(value).lower())
+        return str(value).lower()
 
     @field_validator("password")
     @classmethod

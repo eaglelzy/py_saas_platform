@@ -38,6 +38,7 @@ from app.saas.schemas.auth import (
     PasswordResetConfirm,
     PasswordResetRequest,
     TokenRefreshRequest,
+    VerifyRegisterRequest,
 )
 from app.saas.schemas.common import SuccessResponse
 from app.saas.schemas.users import UserRead
@@ -54,7 +55,18 @@ from app.saas.services.verification import VerificationService
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=SuccessResponse("顾问注册成功"), status_code=status.HTTP_201_CREATED)
+@router.post("/register/verify", status_code=status.HTTP_200_OK)
+def verify_register(
+    payload: VerifyRegisterRequest,
+    request: Request,
+    verifier: VerificationService = Depends(verification_code_service),
+) -> SuccessResponse:
+    code = verifier.issue(scene="auth_register", target=payload.email)
+    # TODO: 发送验证码到邮箱
+    return SuccessResponse(message=f"验证码发送成功，验证码为：{code}")
+
+
+@router.post("/register", response_model=SuccessResponse(message="顾问注册成功"), status_code=status.HTTP_201_CREATED)
 def register_consultant(
     payload: ConsultantRegisterRequest,
     request: Request,
@@ -218,7 +230,7 @@ def activate_account(
 
 
 @router.post("/password/change",
-    response_model=SuccessResponse("密码修改成功，请重新登录"),
+    response_model=SuccessResponse(message="密码修改成功，请重新登录"),
     status_code=status.HTTP_200_OK,
 )
 def change_password(
@@ -240,7 +252,7 @@ def change_password(
 
 
 @router.post("/password/reset/request", 
-    response_model=SuccessResponse("我们会发送重置邮件已发送到您的邮箱"),
+    response_model=SuccessResponse(message="我们会发送重置邮件已发送到您的邮箱"),
     status_code=status.HTTP_200_OK,
 )
 def request_password_reset(
@@ -260,7 +272,7 @@ def request_password_reset(
 
 
 @router.post("/password/reset/confirm",
-    response_model=SuccessResponse("密码重置成功，请使用新密码登录"),
+    response_model=SuccessResponse(message="密码重置成功，请使用新密码登录"),
     status_code=status.HTTP_200_OK,
 )
 def confirm_password_reset(

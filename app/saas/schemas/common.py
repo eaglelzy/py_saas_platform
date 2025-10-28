@@ -71,7 +71,7 @@ class ErrorResponse(BaseModel):
     """统一错误响应体。"""
 
     code: Optional[str] = Field(default=None, description="业务错误码，可选")
-    detail: str = Field(description="错误详情信息")
+    message: str = Field(description="错误详情信息")
 
 class SuccessResponse(BaseModel):
     """统一成功响应体。"""
@@ -89,4 +89,4 @@ class FieldError(BaseModel):
 class ValidationErrorResponse(ErrorResponse):
     """带字段列表的校验错误响应。"""
 
-    errors: list[FieldError] = Field(default_factory=list, description="字段错误列表")
+    detail: list[FieldError] = Field(default_factory=list, description="字段错误列表")

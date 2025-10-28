@@ -3,9 +3,12 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.saas.api.v1.api_error import ApiError
 from app.saas.api.v1.routers import api_router
 from app.saas.core.config.settings import settings
+from app.saas.core.exceptions.handlers import api_error_handler, redis_error_handler
 from app.saas.core.logging import RequestLoggingMiddleware, configure_logging, logger
+from app.saas.core.redis import RedisBackendError
 from app.saas.core.tenancy import TenantContextMiddleware
 from fastapi.exceptions import RequestValidationError
 
@@ -38,9 +41,10 @@ def create_app() -> FastAPI:
     app.add_middleware(TenantContextMiddleware)
     # app.add_middleware(RequestLoggingMiddleware)
     app.add_exception_handler(ServiceError, service_error_handler)
-    # app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(Exception, generic_error_handler)
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
+    app.add_exception_handler(RedisBackendError, redis_error_handler)
     logger.bind(component="bootstrap").info("FastAPI app initialized")
     return app
 
