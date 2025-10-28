@@ -72,7 +72,7 @@ def resolve_current_tenant(
     request: Request,
     current_user: User = Depends(resolve_current_user),
     db: Session = Depends(get_db),
-    repo: TenantContextRepository = Depends(TenantContextRepository),
+    repo: TenantContextRepository = Depends(lambda: TenantContextRepository()),
 ) -> TenantContext:
     """Derive current tenant from header, query, or token and ensure membership."""
 

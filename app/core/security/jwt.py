@@ -5,9 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
-import jwt
-
 from app.core.config.settings import settings
+from jwt import encode, decode
 
 
 def _build_payload(subject: str, expires_delta: timedelta, token_type: str, extra: Dict[str, Any] | None = None) -> dict[str, Any]:
@@ -28,7 +27,7 @@ def create_access_token(subject: str, *, extra: Dict[str, Any] | None = None) ->
 
     expires = timedelta(minutes=settings.access_token_expire_minutes)
     payload = _build_payload(subject, expires, "access", extra)
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
 def create_refresh_token(subject: str, *, extra: Dict[str, Any] | None = None) -> str:
@@ -36,13 +35,13 @@ def create_refresh_token(subject: str, *, extra: Dict[str, Any] | None = None) -
 
     expires = timedelta(days=settings.refresh_token_expire_days)
     payload = _build_payload(subject, expires, "refresh", extra)
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
 def decode_token(token: str) -> dict[str, Any]:
     """解析 JWT，返回 payload。"""
 
-    return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    return decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
 
 
 __all__ = ("create_access_token", "create_refresh_token", "decode_token")

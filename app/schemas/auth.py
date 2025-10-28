@@ -21,7 +21,7 @@ class AuthLoginRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def normalize_email(cls, value: EmailStr) -> EmailStr:
-        return EmailStr(str(value).lower())
+        return str(value).lower()
 
 
 class AuthTokenPair(BaseModel):

@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     default_member_permissions: tuple[str, ...] = Field(("tenant:setting:view",), description="普通成员默认权限")
     permission_cache_ttl_seconds: int = Field(15 * 60, description="租户权限缓存时长（秒）")
 
+    # CORS 配置
+    cors_origins: list[str] = Field(
+        default=["http://localhost:5173", "http://localhost:3000"],
+        description="CORS 允许的源列表"
+    )
+
     # 监控端点
     prometheus_endpoint: str = Field("http://localhost:9090", description="Prometheus 地址")
     grafana_endpoint: str = Field("http://localhost:3000", description="Grafana 地址")

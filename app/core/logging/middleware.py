@@ -49,9 +49,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 duration_ms=round(duration_ms, 2),
             )
             if response.status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
-                log_extra.error("请求处理异常")
+                log_extra.error(f"请求处理异常")
             elif response.status_code >= status.HTTP_400_BAD_REQUEST:
-                log_extra.warning("请求处理异常")
+                log_extra.warning(f"请求处理异常")
             else:
                 log_extra.info("请求处理完成")
             response.headers["X-Request-ID"] = request_id

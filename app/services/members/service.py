@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
@@ -26,9 +26,9 @@ from app.schemas.members import (
 from app.services.exceptions import ConflictError, NotFoundError, ValidationError
 from app.services.members.repository import MemberInvitationRepository, TenantMemberRepository
 from app.services.pagination import PaginationParams, build_paginated_response, paginate_stmt
-from app.services.tenants.repository import TenantRepository
 from app.services.notifications import NotificationService
 from app.services.audit import AuditService
+from app.services.tenants.repository import TenantRepository
 
 
 class TenantMemberService:

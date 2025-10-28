@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import Request, status
+from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
@@ -24,8 +24,7 @@ def service_error_handler(request: Request, exc: ServiceError) -> JSONResponse:
         status=exc.status_code,
         error=f"[{exc.code} : {str(exc)}]"
     ).warning("服务层异常")
-    payload = ErrorResponse(detail=str(exc), code=exc.code)
-    return JSONResponse(status_code=exc.status_code, content=payload.model_dump())
+    return JSONResponse(status_code=exc.status_code, content=exc.to_dict())
 
 
 def generic_error_handler(request: Request, exc: Exception) -> JSONResponse:

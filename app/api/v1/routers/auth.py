@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.v1.api_error import ApiError
 from app.api.v1.dependencies import (
     get_db_session,
     activation_token_service,
@@ -37,18 +38,18 @@ from app.services.auth.activation_service import ActivationTokenService
 from app.services.auth.refresh_service import RefreshTokenService
 from app.services.audit import AuditService
 from app.services.notifications import NotificationService
-from app.services.exceptions import ValidationError
+from app.services.exceptions import ForbiddenError, UnauthorizedError, ValidationError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=AuthenticatedResponse)
 def login(
+    request: Request,
     payload: AuthLoginRequest,
     db: Session = Depends(get_db_session),
     refresh_svc: RefreshTokenService = Depends(refresh_token_service),
     audit: AuditService = Depends(audit_service),
-    request: Request = Depends(),
 ) -> AuthenticatedResponse:
     stmt = select(User).where(User.email == payload.email)
     user = db.execute(stmt).scalars().first()
@@ -57,10 +58,9 @@ def login(
             user.failed_login_attempts += 1
             db.add(user)
             db.commit()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
-
+        raise ApiError(status_code=status.HTTP_401_UNAUTHORIZED, code="auth_login_failed", message="账号或密码错误")
     if not user.is_active or user.is_locked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账号不可用")
+        raise ApiError(status_code=status.HTTP_403_FORBIDDEN, code="forbidden_account", message="账号不可用")
 
     user.failed_login_attempts = 0
     user.last_login_at = datetime.now(timezone.utc)
