@@ -7,12 +7,12 @@ from fastapi import HTTPException
 
 import uuid
 
-from app.core.tenancy import TenantContext
-from app.core.tenancy.repository import PermissionCache, TenantContextRepository
-from app.models.tenant import PlanCode, Tenant, TenantStatus
-from app.models.tenant_member import TenantMember, TenantMemberRole, TenantMemberStatus
-from app.models.tenant_permission import TenantRolePermission
-from app.models.user import User
+from app.saas.core.tenancy import TenantContext
+from app.saas.core.tenancy.repository import PermissionCache, TenantContextRepository
+from app.saas.models.tenant import PlanCode, Tenant, TenantStatus
+from app.saas.models.tenant_member import TenantMember, TenantMemberRole, TenantMemberStatus
+from app.saas.models.tenant_permission import TenantRolePermission
+from app.saas.models.user import User
 
 
 def _create_user() -> User:

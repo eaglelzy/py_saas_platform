@@ -9,10 +9,10 @@ from sqlalchemy.orm import Session
 
 from uuid import uuid4
 
-from app.models.user import User
-from app.services.auth.activation_service import ActivationTokenService
-from app.services.exceptions import ValidationError
-from app.core.security.password import get_password_hash
+from app.saas.models.user import User
+from app.saas.services.auth.activation_service import ActivationTokenService
+from app.saas.services.exceptions import ValidationError
+from app.saas.core.security.password import get_password_hash
 
 
 @pytest.fixture()

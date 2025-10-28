@@ -3,18 +3,18 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1.routers import api_router
-from app.core.config.settings import settings
-from app.core.logging import RequestLoggingMiddleware, configure_logging, logger
-from app.core.tenancy import TenantContextMiddleware
+from app.saas.api.v1.routers import api_router
+from app.saas.core.config.settings import settings
+from app.saas.core.logging import RequestLoggingMiddleware, configure_logging, logger
+from app.saas.core.tenancy import TenantContextMiddleware
 from fastapi.exceptions import RequestValidationError
 
-from app.core.exceptions import (
+from app.saas.core.exceptions import (
     service_error_handler,
     generic_error_handler,
     request_validation_error_handler,
 )
-from app.services.exceptions import ServiceError
+from app.saas.services.exceptions import ServiceError
 
 configure_logging()
 

@@ -24,9 +24,9 @@ PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from app.db.session import SessionLocal  # noqa: E402
-from app.models.user import User  # noqa: E402
-from app.core.security.password import get_password_hash  # noqa: E402
+from app.saas.db.session import SessionLocal  # noqa: E402
+from app.saas.models.user import User  # noqa: E402
+from app.saas.core.security.password import get_password_hash  # noqa: E402
 
 
 def get_env(name: str, *, required: bool = True, default: str | None = None) -> str:

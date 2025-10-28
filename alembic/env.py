@@ -14,8 +14,8 @@ project_root = Path(__file__).resolve().parents[1]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from app.db.base import Base
-from app import models  # noqa: F401  # ensure model metadata is registered
+from app.saas.db.base import Base
+from app.saas import models  # noqa: F401  # ensure model metadata is registered
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

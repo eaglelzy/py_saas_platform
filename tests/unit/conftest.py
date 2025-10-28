@@ -16,8 +16,8 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.base import Base
-from app import models  # noqa: F401  # 导入以注册所有 ORM 模型
+from app.saas.db.base import Base
+from app.saas import models  # noqa: F401  # 导入以注册所有 ORM 模型
 
 
 @pytest.fixture(scope="session")

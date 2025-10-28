@@ -16,7 +16,7 @@
 2. FastAPI 应用会自动挂载 `RequestLoggingMiddleware`，无需额外配置。
 3. 在需要补全上下文的地方调用：
    ```python
-   from app.core.logging import set_log_context
+   from app.saas.core.logging import set_log_context
 
    # 示例：认证后绑定租户与用户信息
    set_log_context(tenant_id="tenant_123", user_id="user_456")

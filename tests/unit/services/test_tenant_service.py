@@ -6,11 +6,11 @@ import pytest
 from sqlalchemy.orm import Session
 from uuid import uuid4
 
-from app.models.user import User
-from app.models.tenant import PlanCode, Tenant
-from app.schemas.tenants import TenantCreate
-from app.services.exceptions import ConflictError
-from app.services.tenants.service import TenantService
+from app.saas.models.user import User
+from app.saas.models.tenant import PlanCode, Tenant
+from app.saas.schemas.tenants import TenantCreate
+from app.saas.services.exceptions import ConflictError
+from app.saas.services.tenants.service import TenantService
 
 
 @pytest.fixture()
