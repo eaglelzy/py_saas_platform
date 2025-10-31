@@ -7,7 +7,7 @@
 
 ## 技术架构基线
 - **后端**：FastAPI + SQLAlchemy + PostgreSQL（单库多租户，RLS 控制），Redis 维护 JWT 黑名单与限流计数，RabbitMQ 预留异步通知。
-- **前端**：Vue 3 + TypeScript + Vite，划分租户控制台与平台运营台两套界面。
+- **前端**：Angular 20 + TypeScript + Angular CLI（Standalone 组件 + NgRx 状态管理），划分租户控制台与平台运营台两套界面。
 - **基础设施**：Docker Compose 本地全栈环境，GitHub Actions 执行 Lint/Test/Build；Prometheus + Grafana 模板化监控，Loguru 结构化日志。
 - **部署策略**：单节点部署起步，保留横向扩展钩子（容器化、队列拆分）。
 
@@ -24,7 +24,7 @@
 | --- | --- | --- |
 | 产品/项目 | 驱动需求澄清、维护路线图、验收核心流程 | PRD、原型、高优先级清单 |
 | 后端 | 设计多租户模型、实现 API、RBAC、审计、队列占位 | FastAPI 微服务、数据库迁移、测试 |
-| 前端 | 搭建租户端与运营端界面、表单校验、通知交互 | Vue 模块、UI 规范、E2E 验证脚本 |
+| 前端 | 搭建租户端与运营端界面、表单校验、通知交互 | Angular 模块、UI 规范、E2E 验证脚本 |
 | 运维/平台 | 构建 Docker Compose、CI/CD、监控、备份脚本 | Pipeline、监控仪表、部署指南 |
 
 ## 迭代节奏（6 周内）

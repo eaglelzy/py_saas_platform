@@ -11,7 +11,7 @@
 2. **安全与多租户基线（P1）**  
    JWT 登录/刷新、Redis 黑名单、RLS 会话上下文、成员上限校验。
 3. **可演示界面与自动化（P2）**  
-   Vue 前端骨架、表单交互、GitHub Actions 和 Docker Compose 雏形。
+   Angular 前端骨架、表单交互、GitHub Actions 和 Docker Compose 雏形。
 
 Stretch（若提前完成）：RabbitMQ 占位、告警/监控模板、Storybook。
 
@@ -23,7 +23,7 @@ Stretch（若提前完成）：RabbitMQ 占位、告警/监控模板、Storybook
 | 第 1 周（天 1-3） | 架构与后端基础 | 数据库建模、Alembic 初始化、Auth/RLS 中间件 | `users/tenants/audit` 模型与迁移、JWT 工具、`/auth/*`、`/health` |
 | 第 1 周（天 4-7） | 租户入驻链路 | 申请/审核 API、租户创建、审计记录、站内通知占位 | `POST /tenants/applications`、`PATCH /admin/tenant-applications/{id}`、审计写入 |
 | 第 2 周（天 8-10） | 成员与邀请 | 成员模型、邀请 Token、套餐上限校验 | `POST /members/invitations`、`POST /invitations/{token}/accept`、Redis token 管理 |
-| 第 2 周（天 11-12） | 前端框架 & Demo | Vue 工程初始化、登录/申请/审核界面雏形、API SDK | 前端仓库结构、基础路由、登录+申请+审核页面、统一主题 |
+| 第 2 周（天 11-12） | 前端框架 & Demo | Angular 工程初始化、登录/申请/审核界面雏形、API SDK | 前端仓库结构、基础路由、登录+申请+审核页面、统一主题 |
 | 第 2 周（天 13-14） | 测试与收尾 | Pytest 覆盖、集成演示、文档整理 | 单元/集成测试、操作手册、Demo 脚本 |
 
 ---
@@ -66,18 +66,19 @@ Stretch（若提前完成）：RabbitMQ 占位、告警/监控模板、Storybook
 
 ### 阶段四：前端骨架 & Demo
 1. **工程搭建**
-   - Vite + Vue3 + TS + Pinia + Vue Router；配置 ESLint/Prettier/Commitlint。
-   - Axios SDK 封装、鉴权拦截器（存储 Access/Refresh Token）。
+   - Angular 20 + TypeScript + Angular CLI；启用 Standalone 组件与路由、配置 ESLint/Prettier/Commitlint。
+   - 集成 NgRx（Store/Effects/Entity）骨架，划分租户端与运营台的 feature store。
+   - 基于 Angular `HttpClient` 封装 API SDK，拦截器统一注入 Access/Refresh Token 与租户标识。
 2. **界面雏形**
    - 登录页、租户申请页、平台审核列表与详情。
    - 成员列表与邀请对话框占位（可先展示数据/表单写入）。
 3. **样式与文档**
-   - 统一主题（Tailwind/Element Plus 选型后集成）。
+   - 统一主题（Angular Material + Tailwind/SCSS 方案选型并集成，短期以 SCSS 为主）。
    - README/Docs 更新：前端开发指南、脚本说明。
 
 ### 阶段五：测试、Demo、自动化
 1. **后端测试**：构建核心流程 Pytest，使用 `client`/`db` fixtures。
-2. **前端测试**：配置 Vitest（单测）与 Cypress 占位（可延后真实用例）。
+2. **前端测试**：使用 Angular 默认测试基线（Jasmine/Karma 或 Jest Builder）与 Cypress 占位（可延后真实用例）。
 3. **CI/CD**：GitHub Actions 工作流草稿（后端测试、前端 Lint/Test、Docker Build）。
 4. **Docker Compose**：整合 FastAPI、Postgres、Redis、RabbitMQ（可占位）、Mailhog，确保本地一键演示。
 5. **Demo 脚本**：记录从注册到邀请的演示步骤，用于每周同步。

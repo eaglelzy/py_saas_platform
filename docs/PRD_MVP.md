@@ -23,7 +23,7 @@
 - **数据库**：PostgreSQL（单实例，按 `tenant_id` 建立 RLS；预留按租户迁移子库能力）。  
 - **缓存**：Redis（JWT 黑名单、限流、短期缓存）。  
 - **队列**：RabbitMQ（异步发送通知、订阅事件，可在 MVP 中占位但只处理关键消息）。  
-- **前端**：Vue 3 + TypeScript + Vite（租户后台 + 平台运营台）。  
+- **前端**：Angular 20 + TypeScript + Angular CLI（租户控制台 + 平台运营台，Standalone 组件架构）。  
 - **部署**：Docker Compose；GitHub Actions（Lint + Test + Build）。  
 - **日志/监控**：Loguru（开发彩色日志） + 结构化 JSON 日志；`/health` 与 `/readiness`；Prometheus + Grafana 模板（CPU、内存、HTTP 指标、队列堆积）。
 
@@ -97,6 +97,6 @@
 ---
 
 ## 6. 交付物与验收
-- FastAPI 应用（`/api/v1`），Vue 顾问工作台 + 运营后台，Docker Compose 本地环境。  
+- FastAPI 应用（`/api/v1`），Angular 顾问工作台 + 运营后台，Docker Compose 本地环境。  
 - 单元/集成测试覆盖核心流程（≥60%）；文档：顾问使用指南、运营审核手册、部署运维清单。  
 - 首批 30 位顾问完成注册试用，其中 ≥5 位转化为订阅付费；收集反馈用于后续 B 端扩展规划。

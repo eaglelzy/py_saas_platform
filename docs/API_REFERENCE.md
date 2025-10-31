@@ -10,6 +10,7 @@
 ## 认证
 | Method | Path | 描述 | 请求体 | 响应 |
 | --- | --- | --- | --- | --- |
+| POST | `/auth/register` | 用户注册（创建账号并触发激活流程/邮件） | `AuthRegisterRequest` | `RegistrationResponse`
 | POST | `/auth/login` | 用户登录，发放 Access/Refresh Token | `AuthLoginRequest` | `AuthenticatedResponse`
 | POST | `/auth/refresh` | 刷新 Access Token | `TokenRefreshRequest` | `AuthTokenPair`
 | POST | `/auth/logout` | 登出并撤销 Refresh Token | `LogoutRequest` | `{detail}`
@@ -77,3 +78,6 @@
 - 所有分页接口返回 `PaginatedResponse`，字段包含 `items`（数据列表）与 `meta`（`total`, `page`, `size`, `has_next`, `has_prev`）。
 - 字段与枚举定义请参考 `app/schemas` 目录中的 Pydantic 模型。
 - 目前未启用鉴权/RBAC，后续接入时可在路由依赖中添加认证与角色校验。
+ - 注册接口请求/响应示例：
+   - `AuthRegisterRequest` 建议字段：`email`, `full_name?`, `password?`（若采用邮件激活则可不传密码）, `tenant_name?`（若允许注册即创建租户草稿）。
+   - `RegistrationResponse` 建议字段：`user_id`, `need_activation`（bool）, `activation_channel`（`email`/`link`）, `{detail}`。

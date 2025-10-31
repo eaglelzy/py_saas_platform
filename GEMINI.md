@@ -19,7 +19,7 @@ This document provides context for the Gemini AI assistant to effectively contri
 - **Database**: PostgreSQL (with Row-Level Security for multi-tenancy)
 - **Cache**: Redis (for JWT blocklists, rate limiting)
 - **Async Tasks**: RabbitMQ (for notifications, can be mocked initially)
-- **Frontend**: Vue 3, TypeScript, Vite
+- **Frontend**: Angular 20, TypeScript, Angular CLI, NgRx
 - **Deployment**: Docker Compose, GitHub Actions for CI
 
 ## 3. Development Plan & Priorities
